@@ -21,7 +21,7 @@ A script (with Unix/Windows variants) for creating feature workspaces (similarly
   -WorkspacesRoot ~/workspaces
 ```
 
-## To Use It From Anywhere - Add It to the PATH Environment Variable:
+## To Use It From Anywhere - Add Its Folder to the PATH Environment Variable:
 
 ```bash
 export PATH=/your/place/to/directory_of_script:$PATH
