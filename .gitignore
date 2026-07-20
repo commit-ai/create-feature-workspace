@@ -1,1 +1,11 @@
+.agents/
 .claude/
+.github/
+
+# APM dependencies
+apm_modules/
+apm.lock.yaml
+apm.yml
+
+node_modules/
+.temp/
