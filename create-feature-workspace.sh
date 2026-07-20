@@ -28,6 +28,7 @@ expand_path() {
 }
 
 workspaces_root="$(expand_path "$workspaces_root")"
+[[ "$workspaces_root" == /* ]] || workspaces_root="$PWD/$workspaces_root"
 mkdir -p "$workspaces_root/$feature_name"
 
 section=""

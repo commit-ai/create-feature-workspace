@@ -56,6 +56,39 @@ exit 0' | Set-Content $gitShim
         Test-Path $expectedPath | Should Be $true
     }
 
+    It "Handles relative -WorkspacesRoot correctly" {
+        $feature = "rel-feat-unique"
+        $runDir = Join-Path $PSScriptRoot "temp-run-cwd"
+        New-Item -ItemType Directory -Force -Path $runDir | Out-Null
+
+        $tempDir = Join-Path $PSScriptRoot "temp-bin-rel"
+        New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
+        $gitShim = Join-Path $tempDir "git.ps1"
+        '$argsString = $args -join " "
+if ($argsString -match "worktree add") {
+    $dest = $args[-2]
+    New-Item -ItemType Directory -Force -Path $dest | Out-Null
+}
+exit 0' | Set-Content $gitShim
+
+        $oldPath = $env:PATH
+        $env:PATH = "$tempDir;$oldPath"
+        $oldLocation = Get-Location
+        Set-Location $runDir
+
+        try {
+            & $scriptPath -FeatureName $feature -ConfigFile $testConfig -WorkspacesRoot "rel-ws"
+        } finally {
+            Set-Location $oldLocation
+            $env:PATH = $oldPath
+            Remove-Item -Recurse -Force $tempDir
+            if (Test-Path $runDir) { Remove-Item -Recurse -Force $runDir }
+        }
+
+        $expectedPath = Join-Path $runDir "rel-ws" | Join-Path -ChildPath $feature | Join-Path -ChildPath "repo-alpha"
+        Test-Path $expectedPath | Should Be $true
+    }
+
     It "Expands tilde (~) in workspaces root" {
         $uniqueTilde = "test-tilde-$(Get-Random)"
         $tempDir = Join-Path $PSScriptRoot "temp-bin-2"

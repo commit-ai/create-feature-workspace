@@ -21,6 +21,9 @@ function Expand-PathValue {
 }
 
 $WorkspacesRoot = Expand-PathValue $WorkspacesRoot
+if (-not [System.IO.Path]::IsPathRooted($WorkspacesRoot)) {
+    $WorkspacesRoot = Join-Path (Get-Location) $WorkspacesRoot
+}
 $WorkspaceDir = Join-Path $WorkspacesRoot $FeatureName
 New-Item -ItemType Directory -Force -Path $WorkspaceDir | Out-Null
 
