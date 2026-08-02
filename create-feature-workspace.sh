@@ -4,12 +4,14 @@ set -euo pipefail
 feature_name=""
 config_file=""
 workspaces_root="~/workspaces"
+no_worktrees="false"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --feature-name) feature_name="$2"; shift 2 ;;
     --config-file) config_file="$2"; shift 2 ;;
     --workspaces-root) workspaces_root="$2"; shift 2 ;;
+    --no-worktrees) no_worktrees="true"; shift ;;
     *) echo "Unknown argument: $1" >&2; exit 1 ;;
   esac
 done
@@ -38,13 +40,22 @@ branch=""
 
 flush_repo() {
   [[ -n "$section" ]] || return 0
-  [[ -n "$name" && -n "$path" && -n "$branch" ]] || {
-    echo "Missing name/path/branch in section [$section]" >&2
-    exit 1
-  }
-  path="$(expand_path "$path")"
-  git -C "$path" worktree add -b "$feature_name" \
-    "$workspaces_root/$feature_name/$name" "$branch"
+  if [[ "$no_worktrees" == "true" ]]; then
+    [[ -n "$name" && -n "$path" ]] || {
+      echo "Missing name/path in section [$section]" >&2
+      exit 1
+    }
+    path="$(expand_path "$path")"
+    ln -s "$path" "$workspaces_root/$feature_name/$name"
+  else
+    [[ -n "$name" && -n "$path" && -n "$branch" ]] || {
+      echo "Missing name/path/branch in section [$section]" >&2
+      exit 1
+    }
+    path="$(expand_path "$path")"
+    git -C "$path" worktree add -b "$feature_name" \
+      "$workspaces_root/$feature_name/$name" "$branch"
+  fi
 }
 
 while IFS= read -r line || [[ -n "$line" ]]; do

@@ -109,3 +109,36 @@ SHIM
     [ "$status" -eq 0 ]
     [ -d "$run_dir/$rel_root/rel-feat/repo-alpha" ]
 }
+
+@test "--no-worktrees creates a symlink to the repo path without calling git" {
+    cat << 'EOF' > "$CONFIG_FILE"
+[repo1]
+name = repo-alpha
+path = /fake/repo
+branch = some-branch
+EOF
+    run bash "$BATS_TEST_DIRNAME/../$SCRIPT" \
+        --feature-name "no-wt-feat" \
+        --config-file "$CONFIG_FILE" \
+        --workspaces-root "$TEMP_WS_ROOT" \
+        --no-worktrees
+    [ "$status" -eq 0 ]
+    [ -L "$TEMP_WS_ROOT/no-wt-feat/repo-alpha" ]
+    [ "$(readlink "$TEMP_WS_ROOT/no-wt-feat/repo-alpha")" = "/fake/repo" ]
+    [[ "$output" != *"MOCK GIT CALLED"* ]]
+}
+
+@test "--no-worktrees succeeds when branch is absent from config" {
+    cat << 'EOF' > "$CONFIG_FILE"
+[repo1]
+name = repo-alpha
+path = /fake/repo
+EOF
+    run bash "$BATS_TEST_DIRNAME/../$SCRIPT" \
+        --feature-name "no-branch-feat" \
+        --config-file "$CONFIG_FILE" \
+        --workspaces-root "$TEMP_WS_ROOT" \
+        --no-worktrees
+    [ "$status" -eq 0 ]
+    [ -L "$TEMP_WS_ROOT/no-branch-feat/repo-alpha" ]
+}

@@ -1,25 +1,26 @@
-# Copilot / Claude Code instructions
+# Repository guidance
 
 ## Commands
 
-- `npm ci` installs the repo's test dependency (`bats`).
-- `npm test` runs the full test suite.
-- `npx bats tests/create-feature-workspace.bats` runs the Unix workspace-creation tests only.
-- `npx bats tests/install-create-feature-workspace.bats` runs the installer tests only.
-- There is no separate build or lint command in this repository today.
+- Install the Bats dependency with `npm ci`.
+- Run all Unix integration tests with `npm test`.
+- Run one Bats file with `npx bats tests/create-feature-workspace.bats` or `npx bats tests/install-create-feature-workspace.bats`.
+- Run a single Bats test by name with `npx bats tests/create-feature-workspace.bats -f "Fails on malformed config"`.
+- PowerShell coverage is in `tests/create-feature-workspace.tests.ps1` and uses Pester; run it where Pester is available with `Invoke-Pester tests/create-feature-workspace.tests.ps1`.
+- There is no build step or separate lint command.
 
 ## Architecture
 
-- `create-feature-workspace.sh` is the primary Unix implementation. It parses an INI-style config file section by section, expands leading `~` paths, creates `<workspaces-root>/<feature-name>/`, and runs `git -C <repo-path> worktree add -b <feature-name> <workspace-dir>/<repo-name> <branch>` once per repo section.
-- `create-feature-workspace.ps1` is the Windows/PowerShell implementation of the same workflow. Changes to the feature-creation flow should usually be mirrored in both scripts.
-- `install-create-feature-workspace.sh` is a separate installer entrypoint. It makes `create-feature-workspace.sh` executable and creates a `create-feature-workspace` symlink in the target bin directory.
-- The test suite is integration-oriented Bats coverage. The main script tests inject a fake `git` executable through `PATH` and assert filesystem side effects and CLI behavior instead of creating real worktrees.
+- `create-feature-workspace.sh` and `create-feature-workspace.ps1` are equivalent Unix and Windows entry points. They parse an intentionally small INI-like repository config, create `<workspaces-root>/<feature-name>/`, and process every repository section.
+- In the default mode, each section creates a worktree with `git -C <repo-path> worktree add -b <feature-name> <workspace-dir>/<repo-name> <branch>`. With `--no-worktrees` / `-NoWorktrees`, each repository is symlinked into the workspace instead.
+- `install-create-feature-workspace.sh` is Unix-only setup: it marks the Bash entry point executable and installs or updates a `create-feature-workspace` symlink in the selected bin directory.
+- Bats tests are integration tests. They provide a fake `git` through `PATH` and verify filesystem effects and command behavior rather than making real worktrees. The PowerShell tests use the analogous shim approach.
 
-## Conventions
+## Repository conventions
 
-- The config file format is intentionally small and fixed: each repo section must provide `name`, `path`, and `branch`. Missing any of those keys should fail the current section instead of being skipped.
-- Keep Bash and PowerShell behavior aligned, especially around path expansion, section validation, and `git worktree add` argument order.
-- Path expansion only handles leading `~` forms (`~` and `~/...`) in both implementations. Preserve that scoped behavior unless you update both scripts and their tests together.
-- Error handling is fail-fast and user-visible: Bash uses `set -euo pipefail` and stderr messages, while PowerShell uses `$ErrorActionPreference = "Stop"` and throws on invalid input.
-- Installer behavior is conservative: refuse to replace an existing regular file, accept an already-correct symlink, and replace an outdated symlink.
-- If you change CLI output or the shape of the `git worktree add` call, update the Bats assertions and the mocked-`git` expectations in `tests/create-feature-workspace.bats`.
+- Keep feature-creation behavior aligned between the Bash and PowerShell implementations, including path expansion, config validation, `--no-worktrees` behavior, and the `git worktree add` argument order.
+- Config sections use `name`, `path`, and `branch`. Worktree mode requires all three; no-worktrees mode requires only `name` and `path`. A malformed active section must fail visibly rather than be skipped.
+- Only expand leading home-directory forms: `~` and `~/...` (plus `~\...` in PowerShell). Resolve a relative workspace root from the caller's current directory.
+- Preserve fail-fast, user-visible errors: Bash uses `set -euo pipefail` and stderr; PowerShell uses `$ErrorActionPreference = "Stop"` and throws.
+- The installer must not overwrite a non-symlink target, should leave an already-correct symlink unchanged, and may replace an outdated symlink.
+- When changing CLI output or the `git worktree add` call shape, update the Bats assertions and fake-`git` expectations in `tests/create-feature-workspace.bats`.

@@ -5,7 +5,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$ConfigFile,
 
-    [string]$WorkspacesRoot = "~/workspaces"
+    [string]$WorkspacesRoot = "~/workspaces",
+
+    [switch]$NoWorktrees
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,21 +39,29 @@ function Add-RepoWorktree {
         [string]$Section,
         [string]$Name,
         [string]$Path,
-        [string]$Branch
+        [string]$Branch,
+        [switch]$NoWorktrees
     )
 
     if (-not $Section) { return }
 
-    if (-not $Name -or -not $Path -or -not $Branch) {
-        throw "Missing name/path/branch in section [$Section]"
-    }
-
-    $RepoPath = Expand-PathValue $Path
-    $Destination = Join-Path $WorkspaceDir $Name
-
-    git -C $RepoPath worktree add -b $FeatureName $Destination $Branch
-    if ($LASTEXITCODE -ne 0) {
-        throw "git worktree add failed for section [$Section]"
+    if ($NoWorktrees) {
+        if (-not $Name -or -not $Path) {
+            throw "Missing name/path in section [$Section]"
+        }
+        $RepoPath = Expand-PathValue $Path
+        $Destination = Join-Path $WorkspaceDir $Name
+        New-Item -ItemType SymbolicLink -Path $Destination -Target $RepoPath | Out-Null
+    } else {
+        if (-not $Name -or -not $Path -or -not $Branch) {
+            throw "Missing name/path/branch in section [$Section]"
+        }
+        $RepoPath = Expand-PathValue $Path
+        $Destination = Join-Path $WorkspaceDir $Name
+        git -C $RepoPath worktree add -b $FeatureName $Destination $Branch
+        if ($LASTEXITCODE -ne 0) {
+            throw "git worktree add failed for section [$Section]"
+        }
     }
 }
 
@@ -63,7 +73,7 @@ foreach ($rawLine in Get-Content -LiteralPath $ConfigFile) {
     }
 
     if ($line -match '^\[(.+)\]$') {
-        Add-RepoWorktree $section $name $path $branch
+        Add-RepoWorktree $section $name $path $branch -NoWorktrees:$NoWorktrees
         $section = $matches[1]
         $name = $null
         $path = $null
@@ -83,4 +93,4 @@ foreach ($rawLine in Get-Content -LiteralPath $ConfigFile) {
     }
 }
 
-Add-RepoWorktree $section $name $path $branch
+Add-RepoWorktree $section $name $path $branch -NoWorktrees:$NoWorktrees
