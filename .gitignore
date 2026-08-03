@@ -1,11 +1,18 @@
-.agents/
-.claude/
-.github/
-
 # APM dependencies
 apm_modules/
 apm.lock.yaml
-apm.yml
 
-node_modules/
+# Ignoring specific agent folders, since agent files (such as skills, agents, etc.) are managed by APM
+.agents
+.agents/
+.claude/*
+!.claude/plans/
+.github
+.github/
+
+# Temporary files
 .temp/
+.DS_Store
+~$*
+__pycache__/
+node_modules/

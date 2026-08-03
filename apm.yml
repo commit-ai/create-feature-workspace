@@ -1,0 +1,13 @@
+name: create-feature-workspace
+version: 1.0.0
+description: Create-feature-workspace
+includes: auto
+targets:
+- copilot
+- claude
+dependencies:
+  apm:
+  - commit-ai/ponytail
+  - commit-ai/commit-ai-skills/skills/humanize
+  mcp: []
+scripts: {}
