@@ -321,35 +321,39 @@ function Sync-Workspace {
     }
 }
 
-if ([string]::IsNullOrWhiteSpace($FeatureName) -and $Command -ne "create") {
-    $FeatureName = Split-Path -Leaf (Get-Location).Path
-}
-
-if ([string]::IsNullOrWhiteSpace($FeatureName)) {
-    throw "-FeatureName is required with -Command create"
-}
-
-if ($FeatureName -eq "." -or $FeatureName -eq ".." -or
-    $FeatureName.IndexOfAny([System.IO.Path]::GetInvalidFileNameChars()) -ge 0 -or
-    $FeatureName.Contains("/") -or $FeatureName.Contains("\")) {
-    throw "Invalid feature name [$FeatureName]"
+if ($Command -ne "create") {
+    if ($PSBoundParameters.ContainsKey('WorkspacesRoot')) {
+        throw "-WorkspacesRoot is not accepted for -Command $Command; run this command from inside the workspace directory"
+    }
+    if ($PSBoundParameters.ContainsKey('FeatureName')) {
+        throw "-FeatureName is not accepted for -Command $Command; run this command from inside the workspace directory"
+    }
+    $WorkspaceDir = (Get-Location).Path
+    $FeatureName  = Split-Path -Leaf $WorkspaceDir
+} else {
+    if ([string]::IsNullOrWhiteSpace($FeatureName)) {
+        throw "-FeatureName is required with -Command create"
+    }
+    if ($FeatureName -eq "." -or $FeatureName -eq ".." -or
+        $FeatureName.IndexOfAny([System.IO.Path]::GetInvalidFileNameChars()) -ge 0 -or
+        $FeatureName.Contains("/") -or $FeatureName.Contains("\")) {
+        throw "Invalid feature name [$FeatureName]"
+    }
+    if ([string]::IsNullOrWhiteSpace($WorkspacesRoot)) { $WorkspacesRoot = "~/workspaces" }
+    $WorkspacesRoot = Resolve-WorkspaceRoot $WorkspacesRoot
+    $WorkspaceDir   = Join-Path $WorkspacesRoot $FeatureName
 }
 
 if ($Command -ne "create" -and $NoWorktrees) {
     throw "-NoWorktrees is only valid with -Command create; mode is persisted in the manifest"
 }
 
-if ([string]::IsNullOrWhiteSpace($WorkspacesRoot) -and $Command -ne "create") {
-    $WorkspacesRoot = Split-Path -Parent (Get-Location).Path
-}
-if ([string]::IsNullOrWhiteSpace($WorkspacesRoot)) {
-    $WorkspacesRoot = "~/workspaces"
-}
-
-$WorkspacesRoot = Resolve-WorkspaceRoot $WorkspacesRoot
-$WorkspaceDir = Join-Path $WorkspacesRoot $FeatureName
 $DesiredPath = Join-Path $WorkspaceDir ".create-feature-workspace.desired.ini"
-$StatePath = Join-Path $WorkspaceDir ".create-feature-workspace.provisioned.ini"
+$StatePath   = Join-Path $WorkspaceDir ".create-feature-workspace.provisioned.ini"
+
+if ($Command -ne "create" -and -not (Test-Path -LiteralPath $DesiredPath -PathType Leaf)) {
+    throw "Not inside a managed workspace. Run this command from inside the workspace directory."
+}
 
 switch ($Command) {
     "create" {

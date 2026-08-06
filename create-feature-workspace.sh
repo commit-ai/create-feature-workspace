@@ -24,9 +24,9 @@ usage() {
   cat >&2 <<EOF
 Usage:
   $0 --feature-name NAME --config-file PATH [--workspaces-root PATH] [--no-worktrees]
-  $0 add --folder-name NAME --folder-path PATH [--branch BRANCH] [--type repository|folder] [--workspaces-root PATH]
-  $0 remove --folder-name NAME [--workspaces-root PATH]
-  $0 sync [--workspaces-root PATH]
+  $0 add --folder-name NAME --folder-path PATH [--branch BRANCH] [--type repository|folder]
+  $0 remove --folder-name NAME
+  $0 sync
 EOF
 }
 
@@ -42,6 +42,7 @@ require_value() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --feature-name)
+      [[ "$action" == "create" ]] || error "--feature-name is not accepted for '$action'; run '$action' from inside the workspace directory"
       require_value "$@"
       feature_name="$2"
       shift 2
@@ -52,6 +53,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --workspaces-root)
+      [[ "$action" == "create" ]] || error "--workspaces-root is not accepted for '$action'; run '$action' from inside the workspace directory"
       require_value "$@"
       workspaces_root="$2"
       shift 2
@@ -90,23 +92,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$feature_name" && "$action" != "create" ]]; then
-  feature_name="$(basename "$PWD")"
-fi
-
-if [[ -z "$workspaces_root" && "$action" != "create" ]]; then
-  workspaces_root="$(dirname "$PWD")"
-fi
-
-[[ -n "$workspaces_root" ]] || workspaces_root=~/workspaces
-
-[[ -n "$feature_name" ]] || {
-  usage
-  exit 1
-}
-
 if [[ "$action" == "create" ]]; then
   [[ -n "$config_file" ]] || {
+    usage
+    exit 1
+  }
+  [[ -n "$feature_name" ]] || {
     usage
     exit 1
   }
@@ -128,11 +119,22 @@ expand_path() {
   esac
 }
 
-workspaces_root="$(expand_path "$workspaces_root")"
-[[ "$workspaces_root" == /* ]] || workspaces_root="$PWD/$workspaces_root"
-workspace_dir="$workspaces_root/$feature_name"
+if [[ "$action" == "create" ]]; then
+  [[ -n "$workspaces_root" ]] || workspaces_root=~/workspaces
+  workspaces_root="$(expand_path "$workspaces_root")"
+  [[ "$workspaces_root" == /* ]] || workspaces_root="$PWD/$workspaces_root"
+  workspace_dir="$workspaces_root/$feature_name"
+else
+  workspace_dir="$PWD"
+  feature_name="$(basename "$PWD")"
+fi
+
 manifest_file="$workspace_dir/.create-feature-workspace.desired.ini"
 state_file="$workspace_dir/.create-feature-workspace.provisioned.ini"
+
+if [[ "$action" != "create" && ! -f "$manifest_file" ]]; then
+  error "Not inside a managed workspace. Run this command from inside the workspace directory (one that contains .create-feature-workspace.desired.ini)."
+fi
 
 entry_names=()
 entry_paths=()

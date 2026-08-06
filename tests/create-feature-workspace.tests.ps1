@@ -328,7 +328,8 @@ path = /fake/repo2
 branch = main
 type = repository
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command sync -WorkspacesRoot $workspacesRoot } | Should Throw
+        Push-Location $ws
+        try { { & $scriptPath -Command sync } | Should Throw } finally { Pop-Location }
     }
 
     It "manifest rejects entry missing name" {
@@ -344,7 +345,8 @@ path = /fake/repo
 branch = main
 type = repository
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command sync -WorkspacesRoot $workspacesRoot } | Should Throw
+        Push-Location $ws
+        try { { & $scriptPath -Command sync } | Should Throw } finally { Pop-Location }
     }
 
     It "manifest rejects repository entry missing branch in worktree mode" {
@@ -360,7 +362,8 @@ name = repo-alpha
 path = /fake/repo
 type = repository
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command sync -WorkspacesRoot $workspacesRoot } | Should Throw
+        Push-Location $ws
+        try { { & $scriptPath -Command sync } | Should Throw } finally { Pop-Location }
     }
 
     It "manifest rejects unknown key" {
@@ -378,7 +381,8 @@ branch = main
 type = repository
 unknown = something
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command sync -WorkspacesRoot $workspacesRoot } | Should Throw
+        Push-Location $ws
+        try { { & $scriptPath -Command sync } | Should Throw } finally { Pop-Location }
     }
 
     It "manifest rejects duplicate key within a section" {
@@ -396,7 +400,8 @@ path = /fake/repo
 branch = main
 type = repository
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command sync -WorkspacesRoot $workspacesRoot } | Should Throw
+        Push-Location $ws
+        try { { & $scriptPath -Command sync } | Should Throw } finally { Pop-Location }
     }
 
     It "manifest rejects file that does not begin with [workspace]" {
@@ -410,7 +415,8 @@ path = /fake/repo
 branch = main
 type = repository
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command sync -WorkspacesRoot $workspacesRoot } | Should Throw
+        Push-Location $ws
+        try { { & $scriptPath -Command sync } | Should Throw } finally { Pop-Location }
     }
 
     It "manifest rejects invalid mode value" {
@@ -427,7 +433,8 @@ path = /fake/repo
 branch = main
 type = repository
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command sync -WorkspacesRoot $workspacesRoot } | Should Throw
+        Push-Location $ws
+        try { { & $scriptPath -Command sync } | Should Throw } finally { Pop-Location }
     }
 
     It "manifest rejects malformed section header" {
@@ -436,7 +443,78 @@ type = repository
         New-Item -ItemType Directory -Force -Path $ws | Out-Null
         "[workspace]`nmode = worktree`n`n[entry-0`nname = repo-alpha`npath = /fake/repo`nbranch = main`ntype = repository" |
             Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command sync -WorkspacesRoot $workspacesRoot } | Should Throw
+        Push-Location $ws
+        try { { & $scriptPath -Command sync } | Should Throw } finally { Pop-Location }
+    }
+
+    # -----------------------------------------------------------------------
+    # Phase 0c-guards: CWD-enforcement guards
+    # -----------------------------------------------------------------------
+
+    It "sync fails with descriptive error when run outside a managed workspace" {
+        $outside = Join-Path $PSScriptRoot "temp-not-a-workspace-$(Get-Random)"
+        New-Item -ItemType Directory -Force -Path $outside | Out-Null
+        try {
+            $oldLocation = Get-Location
+            Set-Location $outside
+            try {
+                { & $scriptPath -Command sync } | Should Throw
+            } finally {
+                Set-Location $oldLocation
+            }
+        } finally {
+            Remove-Item -Recurse -Force $outside -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "add fails with descriptive error when run outside a managed workspace" {
+        $outside = Join-Path $PSScriptRoot "temp-not-a-workspace2-$(Get-Random)"
+        New-Item -ItemType Directory -Force -Path $outside | Out-Null
+        try {
+            $oldLocation = Get-Location
+            Set-Location $outside
+            try {
+                { & $scriptPath -Command add -FolderName foo -FolderPath /fake/repo -Branch main } | Should Throw
+            } finally {
+                Set-Location $oldLocation
+            }
+        } finally {
+            Remove-Item -Recurse -Force $outside -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "sync rejects -WorkspacesRoot flag" {
+        $feature = "sync-reject-wsroot-$(Get-Random)"
+        $ws = Join-Path $workspacesRoot $feature
+        New-Item -ItemType Directory -Force -Path $ws | Out-Null
+        @"
+[workspace]
+mode = worktree
+"@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
+        $oldLocation = Get-Location
+        Set-Location $ws
+        try {
+            { & $scriptPath -Command sync -WorkspacesRoot $workspacesRoot } | Should Throw
+        } finally {
+            Set-Location $oldLocation
+        }
+    }
+
+    It "add rejects -FeatureName flag" {
+        $feature = "add-reject-featname-$(Get-Random)"
+        $ws = Join-Path $workspacesRoot $feature
+        New-Item -ItemType Directory -Force -Path $ws | Out-Null
+        @"
+[workspace]
+mode = worktree
+"@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
+        $oldLocation = Get-Location
+        Set-Location $ws
+        try {
+            { & $scriptPath -Command add -FeatureName foo -FolderName bar -FolderPath /fake/repo -Branch main } | Should Throw
+        } finally {
+            Set-Location $oldLocation
+        }
     }
 
     # -----------------------------------------------------------------------
@@ -460,10 +538,12 @@ type = repository
         $shimDir = Join-Path $PSScriptRoot "shim-$feature"
         $oldPath = $env:PATH
         $env:PATH = "$(New-AddRemoveShim $shimDir);$oldPath"
+        Push-Location $ws
         try {
-            & $scriptPath -FeatureName $feature -Command sync -WorkspacesRoot $workspacesRoot
+            & $scriptPath -Command sync
             Test-Path (Join-Path $ws "repo-alpha") | Should Be $true
         } finally {
+            Pop-Location
             $env:PATH = $oldPath
             Remove-Item -Recurse -Force $shimDir -ErrorAction SilentlyContinue
         }
@@ -482,7 +562,10 @@ name = repo-alpha
 path = /fake/repo
 type = repository
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        & $scriptPath -FeatureName $feature -Command sync -WorkspacesRoot $workspacesRoot
+        Push-Location $ws
+        try {
+            & $scriptPath -Command sync
+        } finally { Pop-Location }
         $item = Get-Item (Join-Path $ws "repo-alpha") -ErrorAction SilentlyContinue -Force
         $item.LinkType | Should Be "SymbolicLink"
     }
@@ -509,10 +592,12 @@ type = repository
         $shimDir = Join-Path $PSScriptRoot "shim-$feature"
         $oldPath = $env:PATH
         $env:PATH = "$(New-AddRemoveShim $shimDir);$oldPath"
+        Push-Location $ws
         try {
-            & $scriptPath -FeatureName $feature -Command sync -WorkspacesRoot $workspacesRoot
+            & $scriptPath -Command sync
             Test-Path $dest | Should Be $false
         } finally {
+            Pop-Location
             $env:PATH = $oldPath
             Remove-Item -Recurse -Force $shimDir -ErrorAction SilentlyContinue
         }
@@ -537,7 +622,8 @@ name = repo-alpha
 path = /fake/repo
 type = repository
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.state.ini")
-        & $scriptPath -FeatureName $feature -Command sync -WorkspacesRoot $workspacesRoot
+        Push-Location $ws
+        try { & $scriptPath -Command sync } finally { Pop-Location }
         Test-Path $dest | Should Be $false
     }
 
@@ -568,10 +654,12 @@ type = repository
         $shimDir = Join-Path $PSScriptRoot "shim-$feature"
         $oldPath = $env:PATH
         $env:PATH = "$(New-AddRemoveShim $shimDir);$oldPath"
+        Push-Location $ws
         try {
-            & $scriptPath -FeatureName $feature -Command sync -WorkspacesRoot $workspacesRoot
+            & $scriptPath -Command sync
             Test-Path (Join-Path $ws "repo-alpha") | Should Be $true
         } finally {
+            Pop-Location
             $env:PATH = $oldPath
             Remove-Item -Recurse -Force $shimDir -ErrorAction SilentlyContinue
         }
@@ -609,10 +697,12 @@ type = repository
         "New-Item -ItemType File -Force -Path '$markerFile' | Out-Null; exit 0" | Set-Content (Join-Path $shimDir "git.ps1")
         $oldPath = $env:PATH
         $env:PATH = "$shimDir;$oldPath"
+        Push-Location $ws
         try {
-            & $scriptPath -FeatureName $feature -Command sync -WorkspacesRoot $workspacesRoot
+            & $scriptPath -Command sync
             Test-Path $markerFile | Should Be $false
         } finally {
+            Pop-Location
             $env:PATH = $oldPath
             Remove-Item -Recurse -Force $shimDir -ErrorAction SilentlyContinue
             Remove-Item $markerFile -ErrorAction SilentlyContinue
@@ -636,12 +726,14 @@ type = repository
         $shimDir = Join-Path $PSScriptRoot "shim-$feature"
         $oldPath = $env:PATH
         $env:PATH = "$(New-AddRemoveShim $shimDir);$oldPath"
+        Push-Location $ws
         try {
-            & $scriptPath -FeatureName $feature -Command sync -WorkspacesRoot $workspacesRoot
+            & $scriptPath -Command sync
             $state = Join-Path $ws ".create-feature-workspace.state.ini"
             Test-Path $state | Should Be $true
             Get-Content $state | Where-Object { $_ -match 'name = repo-alpha' } | Should Not BeNullOrEmpty
         } finally {
+            Pop-Location
             $env:PATH = $oldPath
             Remove-Item -Recurse -Force $shimDir -ErrorAction SilentlyContinue
         }
@@ -662,7 +754,8 @@ branch = main
 type = repository
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
         # no state file — repo-alpha is unmanaged
-        { & $scriptPath -FeatureName $feature -Command sync -WorkspacesRoot $workspacesRoot } | Should Throw
+        Push-Location $ws
+        try { { & $scriptPath -Command sync } | Should Throw } finally { Pop-Location }
     }
 
     It "sync does not force-delete a dirty worktree and does not update state" {
@@ -686,11 +779,13 @@ type = repository
         $shimDir = Join-Path $PSScriptRoot "shim-$feature"
         $oldPath = $env:PATH
         $env:PATH = "$(New-DirtyShim $shimDir);$oldPath"
+        Push-Location $ws
         try {
-            { & $scriptPath -FeatureName $feature -Command sync -WorkspacesRoot $workspacesRoot } | Should Throw
+            { & $scriptPath -Command sync } | Should Throw
             Get-Content (Join-Path $ws ".create-feature-workspace.state.ini") |
                 Where-Object { $_ -match 'name = repo-alpha' } | Should Not BeNullOrEmpty
         } finally {
+            Pop-Location
             $env:PATH = $oldPath
             Remove-Item -Recurse -Force $shimDir -ErrorAction SilentlyContinue
         }
@@ -704,7 +799,8 @@ type = repository
 [workspace]
 mode = worktree
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command sync -WorkspacesRoot $workspacesRoot -NoWorktrees } | Should Throw
+        Push-Location $ws
+        try { { & $scriptPath -Command sync -NoWorktrees } | Should Throw } finally { Pop-Location }
     }
 
     # -----------------------------------------------------------------------
@@ -726,12 +822,14 @@ mode = worktree
         $shimDir = Join-Path $PSScriptRoot "shim-$feature"
         $oldPath = $env:PATH
         $env:PATH = "$(New-AddRemoveShim $shimDir);$oldPath"
+        Push-Location $ws
         try {
-            & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -FolderName repo-alpha -FolderPath /fake/repo -Branch main
+            & $scriptPath -Command add -FolderName repo-alpha -FolderPath /fake/repo -Branch main
             Test-Path (Join-Path $ws "repo-alpha") | Should Be $true
             Get-Content (Join-Path $ws ".create-feature-workspace.ini") |
                 Where-Object { $_ -match 'name = repo-alpha' } | Should Not BeNullOrEmpty
         } finally {
+            Pop-Location
             $env:PATH = $oldPath
             Remove-Item -Recurse -Force $shimDir -ErrorAction SilentlyContinue
         }
@@ -751,8 +849,8 @@ path = /fake/repo
 branch = main
 type = repository
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -FolderName repo-alpha -FolderPath /fake/repo2 -Branch develop } |
-            Should Throw
+        Push-Location $ws
+        try { { & $scriptPath -Command add -FolderName repo-alpha -FolderPath /fake/repo2 -Branch develop } | Should Throw } finally { Pop-Location }
     }
 
     It "add of a folder entry creates a symlink even in worktree-mode workspace" {
@@ -767,7 +865,8 @@ mode = worktree
 [workspace]
 mode = worktree
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.state.ini")
-        & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -FolderName shared-libs -FolderPath /fake/libs -Type folder
+        Push-Location $ws
+        try { & $scriptPath -Command add -FolderName shared-libs -FolderPath /fake/libs -Type folder } finally { Pop-Location }
         $item = Get-Item (Join-Path $ws "shared-libs") -Force -ErrorAction Stop
         $item.LinkType | Should Be "SymbolicLink"
     }
@@ -780,8 +879,8 @@ mode = worktree
 [workspace]
 mode = worktree
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -FolderName repo-alpha -FolderPath /fake/repo } |
-            Should Throw
+        Push-Location $ws
+        try { { & $scriptPath -Command add -FolderName repo-alpha -FolderPath /fake/repo } | Should Throw } finally { Pop-Location }
     }
 
     # -----------------------------------------------------------------------
@@ -815,12 +914,14 @@ type = repository
         $shimDir = Join-Path $PSScriptRoot "shim-$feature"
         $oldPath = $env:PATH
         $env:PATH = "$(New-AddRemoveShim $shimDir);$oldPath"
+        Push-Location $ws
         try {
-            & $scriptPath -FeatureName $feature -Command remove -WorkspacesRoot $workspacesRoot -FolderName repo-alpha
+            & $scriptPath -Command remove -FolderName repo-alpha
             Test-Path (Join-Path $ws "repo-alpha") | Should Be $false
             Get-Content (Join-Path $ws ".create-feature-workspace.ini") |
                 Where-Object { $_ -match 'name = repo-alpha' } | Should BeNullOrEmpty
         } finally {
+            Pop-Location
             $env:PATH = $oldPath
             Remove-Item -Recurse -Force $shimDir -ErrorAction SilentlyContinue
         }
@@ -834,8 +935,8 @@ type = repository
 [workspace]
 mode = worktree
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command remove -WorkspacesRoot $workspacesRoot -FolderName nonexistent } |
-            Should Throw
+        Push-Location $ws
+        try { { & $scriptPath -Command remove -FolderName nonexistent } | Should Throw } finally { Pop-Location }
     }
 
     It "remove does not force-delete a dirty worktree and leaves manifest unchanged" {
@@ -865,11 +966,13 @@ type = repository
         $shimDir = Join-Path $PSScriptRoot "shim-$feature"
         $oldPath = $env:PATH
         $env:PATH = "$(New-DirtyShim $shimDir);$oldPath"
+        Push-Location $ws
         try {
-            { & $scriptPath -FeatureName $feature -Command remove -WorkspacesRoot $workspacesRoot -FolderName repo-alpha } | Should Throw
+            { & $scriptPath -Command remove -FolderName repo-alpha } | Should Throw
             Get-Content (Join-Path $ws ".create-feature-workspace.ini") |
                 Where-Object { $_ -match 'name = repo-alpha' } | Should Not BeNullOrEmpty
         } finally {
+            Pop-Location
             $env:PATH = $oldPath
             Remove-Item -Recurse -Force $shimDir -ErrorAction SilentlyContinue
         }
@@ -903,10 +1006,12 @@ type = repository
         $shimDir = Join-Path $PSScriptRoot "shim-$feature"
         $oldPath = $env:PATH
         $env:PATH = "$(New-AddRemoveShim $shimDir);$oldPath"
+        Push-Location $ws
         try {
-            & $scriptPath -FeatureName $feature -Command sync -WorkspacesRoot $workspacesRoot
+            & $scriptPath -Command sync
             Test-Path (Join-Path $ws "repo-alpha") | Should Be $true
         } finally {
+            Pop-Location
             $env:PATH = $oldPath
             Remove-Item -Recurse -Force $shimDir -ErrorAction SilentlyContinue
         }
@@ -933,10 +1038,12 @@ type = repository
         $shimDir = Join-Path $PSScriptRoot "shim-$feature"
         $oldPath = $env:PATH
         $env:PATH = "$(New-AddRemoveShim $shimDir);$oldPath"
+        Push-Location $ws
         try {
-            & $scriptPath -FeatureName $feature -Command sync -WorkspacesRoot $workspacesRoot
+            & $scriptPath -Command sync
             Test-Path (Join-Path $ws "repo-alpha") | Should Be $false
         } finally {
+            Pop-Location
             $env:PATH = $oldPath
             Remove-Item -Recurse -Force $shimDir -ErrorAction SilentlyContinue
         }
@@ -961,7 +1068,8 @@ unknown = bad
 [workspace]
 mode = worktree
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.state.ini")
-        { & $scriptPath -FeatureName $feature -Command sync -WorkspacesRoot $workspacesRoot } | Should Throw
+        Push-Location $ws
+        try { { & $scriptPath -Command sync } | Should Throw } finally { Pop-Location }
         Test-Path (Join-Path $ws "repo-alpha") | Should Be $false
     }
 
@@ -977,8 +1085,8 @@ mode = worktree
 [workspace]
 mode = worktree
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -FolderName "bad/name" -FolderPath /fake/repo -Branch main } |
-            Should Throw
+        Push-Location $ws
+        try { { & $scriptPath -Command add -FolderName "bad/name" -FolderPath /fake/repo -Branch main } | Should Throw } finally { Pop-Location }
     }
 
     It "entry name containing backslash is rejected" {
@@ -989,8 +1097,8 @@ mode = worktree
 [workspace]
 mode = worktree
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -FolderName "bad\name" -FolderPath /fake/repo -Branch main } |
-            Should Throw
+        Push-Location $ws
+        try { { & $scriptPath -Command add -FolderName "bad\name" -FolderPath /fake/repo -Branch main } | Should Throw } finally { Pop-Location }
     }
 
     It "entry name of . is rejected" {
@@ -1001,8 +1109,8 @@ mode = worktree
 [workspace]
 mode = worktree
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -FolderName "." -FolderPath /fake/repo -Branch main } |
-            Should Throw
+        Push-Location $ws
+        try { { & $scriptPath -Command add -FolderName "." -FolderPath /fake/repo -Branch main } | Should Throw } finally { Pop-Location }
     }
 
     It "entry name of .. is rejected" {
@@ -1013,8 +1121,8 @@ mode = worktree
 [workspace]
 mode = worktree
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -FolderName ".." -FolderPath /fake/repo -Branch main } |
-            Should Throw
+        Push-Location $ws
+        try { { & $scriptPath -Command add -FolderName ".." -FolderPath /fake/repo -Branch main } | Should Throw } finally { Pop-Location }
     }
 
     It "entry name equal to .create-feature-workspace.ini is rejected" {
@@ -1025,8 +1133,8 @@ mode = worktree
 [workspace]
 mode = worktree
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -FolderName ".create-feature-workspace.ini" -FolderPath /fake/repo -Branch main } |
-            Should Throw
+        Push-Location $ws
+        try { { & $scriptPath -Command add -FolderName ".create-feature-workspace.ini" -FolderPath /fake/repo -Branch main } | Should Throw } finally { Pop-Location }
     }
 
     It "entry name equal to .create-feature-workspace.state.ini is rejected" {
@@ -1037,7 +1145,7 @@ mode = worktree
 [workspace]
 mode = worktree
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -FolderName ".create-feature-workspace.state.ini" -FolderPath /fake/repo -Branch main } |
-            Should Throw
+        Push-Location $ws
+        try { { & $scriptPath -Command add -FolderName ".create-feature-workspace.state.ini" -FolderPath /fake/repo -Branch main } | Should Throw } finally { Pop-Location }
     }
 }

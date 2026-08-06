@@ -277,7 +277,7 @@ path = /fake/repo2
 branch = main
 type = repository
 EOF
-    run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "val-dup" --workspaces-root "$TEMP_WS_ROOT"
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"Duplicate workspace entry name"* ]]
 }
@@ -294,7 +294,7 @@ path = /fake/repo
 branch = main
 type = repository
 EOF
-    run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "val-noname" --workspaces-root "$TEMP_WS_ROOT"
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"Missing name/path"* ]]
 }
@@ -311,7 +311,7 @@ name = repo-alpha
 path = /fake/repo
 type = repository
 EOF
-    run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "val-nobranch" --workspaces-root "$TEMP_WS_ROOT"
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"Missing name/path/branch"* ]]
 }
@@ -330,7 +330,7 @@ branch = main
 type = repository
 unknown = something
 EOF
-    run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "val-unknownkey" --workspaces-root "$TEMP_WS_ROOT"
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"unknown key"* ]]
 }
@@ -349,7 +349,7 @@ path = /fake/repo
 branch = main
 type = repository
 EOF
-    run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "val-dupkey" --workspaces-root "$TEMP_WS_ROOT"
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"duplicate key"* ]]
 }
@@ -364,7 +364,7 @@ path = /fake/repo
 branch = main
 type = repository
 EOF
-    run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "val-noworkspace" --workspaces-root "$TEMP_WS_ROOT"
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
     [ "$status" -ne 0 ]
 }
 
@@ -381,7 +381,7 @@ path = /fake/repo
 branch = main
 type = repository
 EOF
-    run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "val-badmode" --workspaces-root "$TEMP_WS_ROOT"
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"invalid"* || "$stderr" == *"mode"* ]]
 }
@@ -391,8 +391,52 @@ EOF
     mkdir -p "$ws"
     printf '[workspace]\nmode = worktree\n\n[entry-0\nname = repo-alpha\npath = /fake/repo\nbranch = main\ntype = repository\n' \
         > "$ws/.create-feature-workspace.desired.ini"
-    run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "val-badheader" --workspaces-root "$TEMP_WS_ROOT"
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
     [ "$status" -ne 0 ]
+}
+
+# ---------------------------------------------------------------------------
+# Phase 0c-guards: CWD-enforcement guards
+# ---------------------------------------------------------------------------
+
+@test "sync fails with descriptive error when run outside a managed workspace" {
+    local outside="$BATS_TMP_DIR/not-a-workspace"
+    mkdir -p "$outside"
+    run --separate-stderr bash -c "cd '$outside' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
+    [ "$status" -ne 0 ]
+    [[ "$stderr" == *"managed workspace"* ]]
+}
+
+@test "add fails with descriptive error when run outside a managed workspace" {
+    local outside="$BATS_TMP_DIR/not-a-workspace2"
+    mkdir -p "$outside"
+    run --separate-stderr bash -c "cd '$outside' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' add --folder-name foo --folder-path /fake/repo --branch main"
+    [ "$status" -ne 0 ]
+    [[ "$stderr" == *"managed workspace"* ]]
+}
+
+@test "sync rejects --workspaces-root flag" {
+    local ws="$TEMP_WS_ROOT/sync-reject-wsroot"
+    mkdir -p "$ws"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
+[workspace]
+mode = worktree
+EOF
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync --workspaces-root '$TEMP_WS_ROOT'"
+    [ "$status" -ne 0 ]
+    [[ "$stderr" == *"not accepted"* ]]
+}
+
+@test "add rejects --feature-name flag" {
+    local ws="$TEMP_WS_ROOT/add-reject-featname"
+    mkdir -p "$ws"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
+[workspace]
+mode = worktree
+EOF
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' add --feature-name foo --folder-name bar --folder-path /fake/repo --branch main"
+    [ "$status" -ne 0 ]
+    [[ "$stderr" == *"not accepted"* ]]
 }
 
 # ---------------------------------------------------------------------------
@@ -413,7 +457,7 @@ path = /fake/repo
 branch = main
 type = repository
 EOF
-    run bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "sync-add-wt" --workspaces-root "$TEMP_WS_ROOT"
+    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
     [ "$status" -eq 0 ]
     [ -d "$ws/repo-alpha" ]
 }
@@ -430,7 +474,7 @@ name = repo-alpha
 path = /fake/repo
 type = repository
 EOF
-    run bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "sync-add-sym" --workspaces-root "$TEMP_WS_ROOT"
+    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
     [ "$status" -eq 0 ]
     [ -L "$ws/repo-alpha" ]
 }
@@ -453,7 +497,7 @@ path = /fake/repo
 branch = main
 type = repository
 EOF
-    run bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "sync-rm-wt" --workspaces-root "$TEMP_WS_ROOT"
+    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
     [ "$status" -eq 0 ]
     [ ! -e "$ws/repo-alpha" ]
 }
@@ -475,7 +519,7 @@ name = repo-alpha
 path = /fake/repo
 type = repository
 EOF
-    run bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "sync-rm-sym" --workspaces-root "$TEMP_WS_ROOT"
+    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
     [ "$status" -eq 0 ]
     [ ! -e "$ws/repo-alpha" ]
 }
@@ -504,7 +548,7 @@ path = /fake/repo
 branch = old-branch
 type = repository
 EOF
-    run bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "sync-replace" --workspaces-root "$TEMP_WS_ROOT"
+    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
     [ "$status" -eq 0 ]
     [ -d "$ws/repo-alpha" ]
 }
@@ -533,7 +577,7 @@ path = /fake/repo
 branch = main
 type = repository
 EOF
-    run bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "sync-noop" --workspaces-root "$TEMP_WS_ROOT"
+    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
     [ "$status" -eq 0 ]
     [[ "$output" != *"MOCK GIT CALLED"* ]]
 }
@@ -552,7 +596,7 @@ path = /fake/repo
 branch = main
 type = repository
 EOF
-    run bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "sync-stateupdate" --workspaces-root "$TEMP_WS_ROOT"
+    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
     [ "$status" -eq 0 ]
     local state="$ws/.create-feature-workspace.provisioned.ini"
     [ -f "$state" ]
@@ -574,7 +618,7 @@ branch = main
 type = repository
 EOF
     # no state file — so repo-alpha is not managed
-    run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "sync-conflict" --workspaces-root "$TEMP_WS_ROOT"
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"Refusing to replace unmanaged path"* ]]
 }
@@ -597,7 +641,7 @@ path = /fake/repo
 branch = main
 type = repository
 EOF
-    run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "sync-dirty" --workspaces-root "$TEMP_WS_ROOT"
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
     [ "$status" -ne 0 ]
     # state must still list repo-alpha (not updated after failed remove)
     grep -q 'name = repo-alpha' "$ws/.create-feature-workspace.provisioned.ini"
@@ -610,7 +654,7 @@ EOF
 [workspace]
 mode = worktree
 EOF
-    run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "sync-nowt" --workspaces-root "$TEMP_WS_ROOT" --no-worktrees
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync --no-worktrees"
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"only supported when creating"* ]]
 }
@@ -631,12 +675,10 @@ EOF
 [state]
 mode = worktree
 EOF
-    run bash "$BATS_TEST_DIRNAME/../$SCRIPT" add \
-        --feature-name "add-basic" \
-        --workspaces-root "$TEMP_WS_ROOT" \
+    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' add \
         --folder-name repo-alpha \
         --folder-path /fake/repo \
-        --branch main
+        --branch main"
     [ "$status" -eq 0 ]
     [ -d "$ws/repo-alpha" ]
     grep -q 'name = repo-alpha' "$ws/.create-feature-workspace.desired.ini"
@@ -655,12 +697,10 @@ path = /fake/repo
 branch = main
 type = repository
 EOF
-    run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" add \
-        --feature-name "add-dup" \
-        --workspaces-root "$TEMP_WS_ROOT" \
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' add \
         --folder-name repo-alpha \
         --folder-path /fake/repo2 \
-        --branch develop
+        --branch develop"
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"already exists"* ]]
 }
@@ -676,12 +716,10 @@ EOF
 [state]
 mode = worktree
 EOF
-    run bash "$BATS_TEST_DIRNAME/../$SCRIPT" add \
-        --feature-name "add-folder" \
-        --workspaces-root "$TEMP_WS_ROOT" \
+    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' add \
         --folder-name shared-libs \
         --folder-path /fake/libs \
-        --type folder
+        --type folder"
     [ "$status" -eq 0 ]
     [ -L "$ws/shared-libs" ]
 }
@@ -711,11 +749,9 @@ SHIM
 [workspace]
 mode = worktree
 EOF
-    run bash "$BATS_TEST_DIRNAME/../$SCRIPT" add \
-        --feature-name "add-infer-branch" \
-        --workspaces-root "$TEMP_WS_ROOT" \
+    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' add \
         --folder-name repo-alpha \
-        --folder-path /fake/repo
+        --folder-path /fake/repo"
     [ "$status" -eq 0 ]
     grep -q 'branch = inferred-branch' "$ws/.create-feature-workspace.desired.ini"
 }
@@ -738,11 +774,9 @@ SHIM
 [workspace]
 mode = worktree
 EOF
-    run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" add \
-        --feature-name "add-nobranch" \
-        --workspaces-root "$TEMP_WS_ROOT" \
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' add \
         --folder-name repo-alpha \
-        --folder-path /fake/repo
+        --folder-path /fake/repo"
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"Could not detect current branch"* ]]
 }
@@ -775,10 +809,7 @@ path = /fake/repo
 branch = main
 type = repository
 EOF
-    run bash "$BATS_TEST_DIRNAME/../$SCRIPT" remove \
-        --feature-name "remove-basic" \
-        --workspaces-root "$TEMP_WS_ROOT" \
-        --folder-name repo-alpha
+    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' remove --folder-name repo-alpha"
     [ "$status" -eq 0 ]
     [ ! -e "$ws/repo-alpha" ]
     ! grep -q 'name = repo-alpha' "$ws/.create-feature-workspace.desired.ini"
@@ -791,10 +822,7 @@ EOF
 [workspace]
 mode = worktree
 EOF
-    run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" remove \
-        --feature-name "remove-notfound" \
-        --workspaces-root "$TEMP_WS_ROOT" \
-        --folder-name nonexistent
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' remove --folder-name nonexistent"
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"not found"* ]]
 }
@@ -823,10 +851,7 @@ path = /fake/repo
 branch = main
 type = repository
 EOF
-    run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" remove \
-        --feature-name "remove-dirty" \
-        --workspaces-root "$TEMP_WS_ROOT" \
-        --folder-name repo-alpha
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' remove --folder-name repo-alpha"
     [ "$status" -ne 0 ]
     grep -q 'name = repo-alpha' "$ws/.create-feature-workspace.desired.ini"
 }
@@ -856,7 +881,7 @@ path = /fake/repo
 branch = main
 type = repository
 EOF
-    run bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "manual-add" --workspaces-root "$TEMP_WS_ROOT"
+    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
     [ "$status" -eq 0 ]
     [ -d "$ws/repo-alpha" ]
 }
@@ -879,7 +904,7 @@ path = /fake/repo
 branch = main
 type = repository
 EOF
-    run bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "manual-rm" --workspaces-root "$TEMP_WS_ROOT"
+    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
     [ "$status" -eq 0 ]
     [ ! -e "$ws/repo-alpha" ]
 }
@@ -902,7 +927,7 @@ EOF
 [state]
 mode = worktree
 EOF
-    run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "manual-invalid" --workspaces-root "$TEMP_WS_ROOT"
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
     [ "$status" -ne 0 ]
     [ ! -e "$ws/repo-alpha" ]
 }
@@ -918,12 +943,10 @@ EOF
 [workspace]
 mode = worktree
 EOF
-    run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" add \
-        --feature-name "name-slash" \
-        --workspaces-root "$TEMP_WS_ROOT" \
-        --folder-name "bad/name" \
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' add \
+        --folder-name 'bad/name' \
         --folder-path /fake/repo \
-        --branch main
+        --branch main"
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"invalid"* || "$stderr" == *"entry name"* ]]
 }
@@ -935,12 +958,10 @@ EOF
 [workspace]
 mode = worktree
 EOF
-    run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" add \
-        --feature-name "name-backslash" \
-        --workspaces-root "$TEMP_WS_ROOT" \
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' add \
         --folder-name 'bad\name' \
         --folder-path /fake/repo \
-        --branch main
+        --branch main"
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"invalid"* || "$stderr" == *"entry name"* ]]
 }
@@ -952,12 +973,10 @@ EOF
 [workspace]
 mode = worktree
 EOF
-    run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" add \
-        --feature-name "name-dot" \
-        --workspaces-root "$TEMP_WS_ROOT" \
-        --folder-name "." \
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' add \
+        --folder-name '.' \
         --folder-path /fake/repo \
-        --branch main
+        --branch main"
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"invalid"* || "$stderr" == *"entry name"* ]]
 }
@@ -969,12 +988,10 @@ EOF
 [workspace]
 mode = worktree
 EOF
-    run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" add \
-        --feature-name "name-dotdot" \
-        --workspaces-root "$TEMP_WS_ROOT" \
-        --folder-name ".." \
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' add \
+        --folder-name '..' \
         --folder-path /fake/repo \
-        --branch main
+        --branch main"
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"invalid"* || "$stderr" == *"entry name"* ]]
 }
@@ -986,12 +1003,10 @@ EOF
 [workspace]
 mode = worktree
 EOF
-    run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" add \
-        --feature-name "name-reserved1" \
-        --workspaces-root "$TEMP_WS_ROOT" \
-        --folder-name ".create-feature-workspace.desired.ini" \
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' add \
+        --folder-name '.create-feature-workspace.desired.ini' \
         --folder-path /fake/repo \
-        --branch main
+        --branch main"
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"invalid"* || "$stderr" == *"entry name"* || "$stderr" == *"reserved"* ]]
 }
@@ -1003,12 +1018,10 @@ EOF
 [workspace]
 mode = worktree
 EOF
-    run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" add \
-        --feature-name "name-reserved2" \
-        --workspaces-root "$TEMP_WS_ROOT" \
-        --folder-name ".create-feature-workspace.provisioned.ini" \
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' add \
+        --folder-name '.create-feature-workspace.provisioned.ini' \
         --folder-path /fake/repo \
-        --branch main
+        --branch main"
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"invalid"* || "$stderr" == *"entry name"* || "$stderr" == *"reserved"* ]]
 }
@@ -1044,7 +1057,7 @@ path = /fake/repo
 branch = main
 type = repository
 EOF
-    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync --workspaces-root '$TEMP_WS_ROOT'"
+    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
     [ "$status" -eq 0 ]
     [ -d "$ws/repo-alpha" ]
 }
@@ -1062,7 +1075,6 @@ EOF
 mode = worktree
 EOF
     run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' add \
-        --workspaces-root '$TEMP_WS_ROOT' \
         --folder-name repo-alpha \
         --folder-path /fake/repo \
         --branch main"
@@ -1096,7 +1108,6 @@ branch = main
 type = repository
 EOF
     run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' remove \
-        --workspaces-root '$TEMP_WS_ROOT' \
         --folder-name repo-alpha"
     [ "$status" -eq 0 ]
     [ ! -e "$ws/repo-alpha" ]
@@ -1178,7 +1189,7 @@ EOF
     ! grep -q 'name = repo-alpha' "$ws/.create-feature-workspace.desired.ini"
 }
 
-@test "sync with explicit --feature-name but no --workspaces-root infers root from CWD parent" {
+@test "sync run from inside the workspace directory operates on that workspace" {
     _write_full_shim
     local ws="$TEMP_WS_ROOT/cwd-infer-root-explicit-feat"
     mkdir -p "$ws"
@@ -1192,8 +1203,7 @@ path = /fake/repo
 branch = main
 type = repository
 EOF
-    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync \
-        --feature-name cwd-infer-root-explicit-feat"
+    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
     [ "$status" -eq 0 ]
     [ -d "$ws/repo-alpha" ]
 }
