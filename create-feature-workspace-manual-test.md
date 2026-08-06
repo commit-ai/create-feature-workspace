@@ -95,13 +95,13 @@ test -f "$WORKSPACE/repo-one/.git"
 test -f "$WORKSPACE/repo-two/.git"
 test -L "$WORKSPACE/shared-folder"
 test "$(readlink "$WORKSPACE/shared-folder")" = "$SHARED_FOLDER"
-test -f "$WORKSPACE/.create-feature-workspace.ini"
-test -f "$WORKSPACE/.create-feature-workspace.state.ini"
+test -f "$WORKSPACE/.create-feature-workspace.desired.ini"
+test -f "$WORKSPACE/.create-feature-workspace.provisioned.ini"
 
 git -C "$WORKSPACE/repo-one" branch --show-current
 git -C "$WORKSPACE/repo-two" branch --show-current
-cat "$WORKSPACE/.create-feature-workspace.ini"
-cat "$WORKSPACE/.create-feature-workspace.state.ini"
+cat "$WORKSPACE/.create-feature-workspace.desired.ini"
+cat "$WORKSPACE/.create-feature-workspace.provisioned.ini"
 ```
 
 Expected branch output:
@@ -137,7 +137,7 @@ Add a new entry to the existing manifest manually, then reconcile it:
 mkdir -p "$TEST_ROOT/extra-folder"
 printf 'extra files\n' > "$TEST_ROOT/extra-folder/README.txt"
 
-cat >> "$WORKSPACE/.create-feature-workspace.ini" <<EOF
+cat >> "$WORKSPACE/.create-feature-workspace.desired.ini" <<EOF
 
 [entry-extra]
 name = extra-folder
@@ -157,7 +157,7 @@ test "$(readlink "$WORKSPACE/extra-folder")" = "$TEST_ROOT/extra-folder"
 `sync` should create the missing managed entry and add it to the state file:
 
 ```bash
-grep -q '^name = extra-folder$' "$WORKSPACE/.create-feature-workspace.state.ini"
+grep -q '^name = extra-folder$' "$WORKSPACE/.create-feature-workspace.provisioned.ini"
 ```
 
 ## 7. Test `add`
@@ -170,15 +170,15 @@ mkdir -p "$TEST_ROOT/docs"
 bash ./create-feature-workspace.sh \
   add \
   --feature-name feature-demo \
-  --name docs \
-  --path "$TEST_ROOT/docs" \
+  --folder-name docs \
+  --folder-path "$TEST_ROOT/docs" \
   --type folder \
   --workspaces-root "$WORKSPACES"
 
 test -L "$WORKSPACE/docs"
 test "$(readlink "$WORKSPACE/docs")" = "$TEST_ROOT/docs"
-grep -q '^name = docs$' "$WORKSPACE/.create-feature-workspace.ini"
-grep -q '^name = docs$' "$WORKSPACE/.create-feature-workspace.state.ini"
+grep -q '^name = docs$' "$WORKSPACE/.create-feature-workspace.desired.ini"
+grep -q '^name = docs$' "$WORKSPACE/.create-feature-workspace.provisioned.ini"
 ```
 
 ## 8. Test `remove`
@@ -189,13 +189,13 @@ Remove the entry added in the previous step:
 bash ./create-feature-workspace.sh \
   remove \
   --feature-name feature-demo \
-  --name docs \
+  --folder-name docs \
   --workspaces-root "$WORKSPACES"
 
 test ! -e "$WORKSPACE/docs"
 test ! -L "$WORKSPACE/docs"
-! grep -q '^name = docs$' "$WORKSPACE/.create-feature-workspace.ini"
-! grep -q '^name = docs$' "$WORKSPACE/.create-feature-workspace.state.ini"
+! grep -q '^name = docs$' "$WORKSPACE/.create-feature-workspace.desired.ini"
+! grep -q '^name = docs$' "$WORKSPACE/.create-feature-workspace.provisioned.ini"
 ```
 
 The source directory must remain untouched:
@@ -212,13 +212,13 @@ Remove one repository entry. This should call `git worktree remove` and delete o
 bash ./create-feature-workspace.sh \
   remove \
   --feature-name feature-demo \
-  --name repo-two \
+  --folder-name repo-two \
   --workspaces-root "$WORKSPACES"
 
 test ! -d "$WORKSPACE/repo-two"
 test -d "$REPO_TWO"
 git -C "$REPO_TWO" worktree list
-! grep -q '^name = repo-two$' "$WORKSPACE/.create-feature-workspace.state.ini"
+! grep -q '^name = repo-two$' "$WORKSPACE/.create-feature-workspace.provisioned.ini"
 ```
 
 ## 10. Test symlink mode with `--no-worktrees`
@@ -248,7 +248,7 @@ SYMLINK_WORKSPACE="$WORKSPACES/symlink-demo"
 test -L "$SYMLINK_WORKSPACE/repo-one"
 test "$(readlink "$SYMLINK_WORKSPACE/repo-one")" = "$REPO_ONE"
 test -L "$SYMLINK_WORKSPACE/shared-folder"
-grep -q '^mode = symlink$' "$SYMLINK_WORKSPACE/.create-feature-workspace.ini"
+grep -q '^mode = symlink$' "$SYMLINK_WORKSPACE/.create-feature-workspace.desired.ini"
 ```
 
 ## 11. Test the installer

@@ -21,8 +21,8 @@ The existing shim only handles `worktree add`. Extend it to handle `worktree rem
 
 ### 0b. Bats coverage for manifest and state creation
 
-- Creation writes `.create-feature-workspace.ini` with a `[workspace]` section containing `mode = worktree` (or `mode = symlink` with `--no-worktrees`).
-- Creation writes `.create-feature-workspace.state.ini` listing exactly the entries provisioned.
+- Creation writes `.create-feature-workspace.desired.ini` with a `[workspace]` section containing `mode = worktree` (or `mode = symlink` with `--no-worktrees`).
+- Creation writes `.create-feature-workspace.provisioned.ini` listing exactly the entries provisioned.
 - Creation fails with a visible error when the manifest already exists ("Workspace manifest already exists").
 
 ### 0c. Bats coverage for manifest validation
@@ -75,13 +75,13 @@ Write equivalent Pester tests for all cases above, using the existing shim/stub 
 
 ## Phase 1 — Fix Bash/PowerShell parity gap (TDD)
 
-PowerShell has `Assert-EntryName`, which rejects entry names containing path separators, reserved filenames (`.create-feature-workspace.ini`, `.create-feature-workspace.state.ini`), and filesystem-invalid characters. Bash has no equivalent.
+PowerShell has `Assert-EntryName`, which rejects entry names containing path separators, reserved filenames (`.create-feature-workspace.desired.ini`, `.create-feature-workspace.provisioned.ini`), and filesystem-invalid characters. Bash has no equivalent.
 
 **1a. Write red Bats tests first**
 - Reject an entry name containing `/`.
 - Reject an entry name containing `\`.
 - Reject an entry name of `.` or `..`.
-- Reject an entry name equal to `.create-feature-workspace.ini` or `.create-feature-workspace.state.ini`.
+- Reject an entry name equal to `.create-feature-workspace.desired.ini` or `.create-feature-workspace.provisioned.ini`.
 - Run the tests and confirm they fail before implementing anything.
 
 **1b. Implement `assert_entry_name` in `create-feature-workspace.sh`**

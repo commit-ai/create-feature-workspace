@@ -727,7 +727,7 @@ mode = worktree
         $oldPath = $env:PATH
         $env:PATH = "$(New-AddRemoveShim $shimDir);$oldPath"
         try {
-            & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -Name repo-alpha -Path /fake/repo -Branch main
+            & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -FolderName repo-alpha -FolderPath /fake/repo -Branch main
             Test-Path (Join-Path $ws "repo-alpha") | Should Be $true
             Get-Content (Join-Path $ws ".create-feature-workspace.ini") |
                 Where-Object { $_ -match 'name = repo-alpha' } | Should Not BeNullOrEmpty
@@ -751,7 +751,7 @@ path = /fake/repo
 branch = main
 type = repository
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -Name repo-alpha -Path /fake/repo2 -Branch develop } |
+        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -FolderName repo-alpha -FolderPath /fake/repo2 -Branch develop } |
             Should Throw
     }
 
@@ -767,7 +767,7 @@ mode = worktree
 [workspace]
 mode = worktree
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.state.ini")
-        & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -Name shared-libs -Path /fake/libs -Type folder
+        & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -FolderName shared-libs -FolderPath /fake/libs -Type folder
         $item = Get-Item (Join-Path $ws "shared-libs") -Force -ErrorAction Stop
         $item.LinkType | Should Be "SymbolicLink"
     }
@@ -780,7 +780,7 @@ mode = worktree
 [workspace]
 mode = worktree
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -Name repo-alpha -Path /fake/repo } |
+        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -FolderName repo-alpha -FolderPath /fake/repo } |
             Should Throw
     }
 
@@ -816,7 +816,7 @@ type = repository
         $oldPath = $env:PATH
         $env:PATH = "$(New-AddRemoveShim $shimDir);$oldPath"
         try {
-            & $scriptPath -FeatureName $feature -Command remove -WorkspacesRoot $workspacesRoot -Name repo-alpha
+            & $scriptPath -FeatureName $feature -Command remove -WorkspacesRoot $workspacesRoot -FolderName repo-alpha
             Test-Path (Join-Path $ws "repo-alpha") | Should Be $false
             Get-Content (Join-Path $ws ".create-feature-workspace.ini") |
                 Where-Object { $_ -match 'name = repo-alpha' } | Should BeNullOrEmpty
@@ -834,7 +834,7 @@ type = repository
 [workspace]
 mode = worktree
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command remove -WorkspacesRoot $workspacesRoot -Name nonexistent } |
+        { & $scriptPath -FeatureName $feature -Command remove -WorkspacesRoot $workspacesRoot -FolderName nonexistent } |
             Should Throw
     }
 
@@ -866,7 +866,7 @@ type = repository
         $oldPath = $env:PATH
         $env:PATH = "$(New-DirtyShim $shimDir);$oldPath"
         try {
-            { & $scriptPath -FeatureName $feature -Command remove -WorkspacesRoot $workspacesRoot -Name repo-alpha } | Should Throw
+            { & $scriptPath -FeatureName $feature -Command remove -WorkspacesRoot $workspacesRoot -FolderName repo-alpha } | Should Throw
             Get-Content (Join-Path $ws ".create-feature-workspace.ini") |
                 Where-Object { $_ -match 'name = repo-alpha' } | Should Not BeNullOrEmpty
         } finally {
@@ -977,7 +977,7 @@ mode = worktree
 [workspace]
 mode = worktree
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -Name "bad/name" -Path /fake/repo -Branch main } |
+        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -FolderName "bad/name" -FolderPath /fake/repo -Branch main } |
             Should Throw
     }
 
@@ -989,7 +989,7 @@ mode = worktree
 [workspace]
 mode = worktree
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -Name "bad\name" -Path /fake/repo -Branch main } |
+        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -FolderName "bad\name" -FolderPath /fake/repo -Branch main } |
             Should Throw
     }
 
@@ -1001,7 +1001,7 @@ mode = worktree
 [workspace]
 mode = worktree
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -Name "." -Path /fake/repo -Branch main } |
+        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -FolderName "." -FolderPath /fake/repo -Branch main } |
             Should Throw
     }
 
@@ -1013,7 +1013,7 @@ mode = worktree
 [workspace]
 mode = worktree
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -Name ".." -Path /fake/repo -Branch main } |
+        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -FolderName ".." -FolderPath /fake/repo -Branch main } |
             Should Throw
     }
 
@@ -1025,7 +1025,7 @@ mode = worktree
 [workspace]
 mode = worktree
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -Name ".create-feature-workspace.ini" -Path /fake/repo -Branch main } |
+        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -FolderName ".create-feature-workspace.ini" -FolderPath /fake/repo -Branch main } |
             Should Throw
     }
 
@@ -1037,7 +1037,7 @@ mode = worktree
 [workspace]
 mode = worktree
 "@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
-        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -Name ".create-feature-workspace.state.ini" -Path /fake/repo -Branch main } |
+        { & $scriptPath -FeatureName $feature -Command add -WorkspacesRoot $workspacesRoot -FolderName ".create-feature-workspace.state.ini" -FolderPath /fake/repo -Branch main } |
             Should Throw
     }
 }

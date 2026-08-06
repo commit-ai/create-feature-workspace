@@ -4,7 +4,7 @@ set -euo pipefail
 action="create"
 feature_name=""
 config_file=""
-workspaces_root="~/workspaces"
+workspaces_root=""
 no_worktrees="false"
 entry_name=""
 entry_path=""
@@ -24,9 +24,9 @@ usage() {
   cat >&2 <<EOF
 Usage:
   $0 --feature-name NAME --config-file PATH [--workspaces-root PATH] [--no-worktrees]
-  $0 add --feature-name NAME --name NAME --path PATH [--branch BRANCH] [--type repository|folder] [--workspaces-root PATH]
-  $0 remove --feature-name NAME --name NAME [--workspaces-root PATH]
-  $0 sync --feature-name NAME [--workspaces-root PATH]
+  $0 add --folder-name NAME --folder-path PATH [--branch BRANCH] [--type repository|folder] [--workspaces-root PATH]
+  $0 remove --folder-name NAME [--workspaces-root PATH]
+  $0 sync [--workspaces-root PATH]
 EOF
 }
 
@@ -60,12 +60,12 @@ while [[ $# -gt 0 ]]; do
       no_worktrees="true"
       shift
       ;;
-    --name)
+    --folder-name)
       require_value "$@"
       entry_name="$2"
       shift 2
       ;;
-    --path)
+    --folder-path)
       require_value "$@"
       entry_path="$2"
       shift 2
@@ -90,6 +90,16 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -z "$feature_name" && "$action" != "create" ]]; then
+  feature_name="$(basename "$PWD")"
+fi
+
+if [[ -z "$workspaces_root" && "$action" != "create" ]]; then
+  workspaces_root="$(dirname "$PWD")"
+fi
+
+[[ -n "$workspaces_root" ]] || workspaces_root=~/workspaces
+
 [[ -n "$feature_name" ]] || {
   usage
   exit 1
@@ -105,9 +115,9 @@ elif [[ "$no_worktrees" == "true" || -n "$config_file" ]]; then
 fi
 
 if [[ "$action" == "add" ]]; then
-  [[ -n "$entry_name" && -n "$entry_path" ]] || error "add requires --name and --path"
+  [[ -n "$entry_name" && -n "$entry_path" ]] || error "add requires --folder-name and --folder-path"
 elif [[ "$action" == "remove" ]]; then
-  [[ -n "$entry_name" ]] || error "remove requires --name"
+  [[ -n "$entry_name" ]] || error "remove requires --folder-name"
 fi
 
 expand_path() {
@@ -121,8 +131,8 @@ expand_path() {
 workspaces_root="$(expand_path "$workspaces_root")"
 [[ "$workspaces_root" == /* ]] || workspaces_root="$PWD/$workspaces_root"
 workspace_dir="$workspaces_root/$feature_name"
-manifest_file="$workspace_dir/.create-feature-workspace.ini"
-state_file="$workspace_dir/.create-feature-workspace.state.ini"
+manifest_file="$workspace_dir/.create-feature-workspace.desired.ini"
+state_file="$workspace_dir/.create-feature-workspace.provisioned.ini"
 
 entry_names=()
 entry_paths=()
@@ -142,7 +152,7 @@ assert_entry_name() {
   [[ -n "$name" ]] || return 0  # empty name reported by validate_entries
   [[ "$name" != "." && "$name" != ".." ]] || error "Invalid entry name: $name"
   [[ "$name" != */* && "$name" != *\\* ]] || error "Invalid entry name: $name"
-  [[ "$name" != ".create-feature-workspace.ini" && "$name" != ".create-feature-workspace.state.ini" ]] ||
+  [[ "$name" != ".create-feature-workspace.desired.ini" && "$name" != ".create-feature-workspace.provisioned.ini" ]] ||
     error "Invalid entry name: $name is reserved"
 }
 
@@ -266,7 +276,7 @@ write_manifest() {
   local i
 
   {
-    printf '[workspace]\nmode = %s\n' "$manifest_mode"
+    printf '; Desired workspace definition. Edit this file, then run sync.\n[workspace]\nmode = %s\n' "$manifest_mode"
     for ((i = 0; i < ${#entry_names[@]}; i++)); do
       printf '\n[entry-%s]\nname = %s\npath = %s\ntype = %s\n' \
         "$i" "${entry_names[i]}" "${entry_paths[i]}" "${entry_types[i]}"
@@ -305,7 +315,7 @@ write_state() {
   local i
 
   {
-    printf '[state]\nmode = %s\n' "$state_mode"
+    printf '; Provisioned workspace record. Managed by create-feature-workspace; do not edit.\n[state]\nmode = %s\n' "$state_mode"
     for ((i = 0; i < ${#state_names[@]}; i++)); do
       printf '\n[entry-%s]\nname = %s\npath = %s\ntype = %s\n' \
         "$i" "${state_names[i]}" "${state_paths[i]}" "${state_types[i]}"
@@ -460,6 +470,10 @@ add_entry() {
   for ((i = 0; i < ${#entry_names[@]}; i++)); do
     [[ "${entry_names[i]}" != "$entry_name" ]] || error "Workspace entry already exists: $entry_name"
   done
+  if [[ -z "$entry_branch" && "$manifest_mode" == "worktree" && "$entry_type" == "repository" ]]; then
+    entry_branch="$(git -C "$(expand_path "$entry_path")" symbolic-ref --short HEAD 2>/dev/null)" ||
+      error "Could not detect current branch for $entry_path; pass --branch explicitly"
+  fi
   entry_names+=("$entry_name")
   entry_paths+=("$entry_path")
   entry_branches+=("$entry_branch")
@@ -511,3 +525,6 @@ case "$action" in
   add) add_entry ;;
   remove) remove_entry ;;
 esac
+
+printf 'Workspace metadata:\n  Desired configuration: %s\n  Provisioned record: %s\n' \
+  "$manifest_file" "$state_file"

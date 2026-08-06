@@ -1,19 +1,18 @@
 param(
-    [Parameter(Mandatory = $true)]
-    [string]$FeatureName,
+    [string]$FeatureName = "",
 
     [string]$ConfigFile,
 
-    [string]$WorkspacesRoot = "~/workspaces",
+    [string]$WorkspacesRoot = "",
 
     [switch]$NoWorktrees,
 
     [ValidateSet("create", "sync", "add", "remove")]
     [string]$Command = "create",
 
-    [string]$Name,
+    [string]$FolderName,
 
-    [string]$Path,
+    [string]$FolderPath,
 
     [string]$Branch,
 
@@ -54,8 +53,8 @@ function Assert-EntryName {
         $Value -eq "." -or $Value -eq ".." -or
         $Value.IndexOfAny([System.IO.Path]::GetInvalidFileNameChars()) -ge 0 -or
         $Value.Contains("/") -or $Value.Contains("\") -or
-        $Value -eq ".create-feature-workspace.ini" -or
-        $Value -eq ".create-feature-workspace.state.ini") {
+        $Value -eq ".create-feature-workspace.desired.ini" -or
+        $Value -eq ".create-feature-workspace.provisioned.ini") {
         throw "Invalid workspace entry name [$Value]"
     }
 }
@@ -148,7 +147,7 @@ function Read-WorkspaceIni {
             continue
         }
         if ($line -notmatch '^(.*?)=(.*)$') {
-            throw "Malformed configuration line in $IniPath: $rawLine"
+            throw "Malformed configuration line in ${IniPath}: $rawLine"
         }
         if ($null -eq $section) {
             throw "Configuration key outside a section in $IniPath"
@@ -194,6 +193,11 @@ function Write-WorkspaceIni {
     )
 
     $lines = New-Object System.Collections.ArrayList
+    if ($IniPath -like "*.desired.ini*") {
+        [void]$lines.Add("; Desired workspace definition. Edit this file, then run sync.")
+    } else {
+        [void]$lines.Add("; Provisioned workspace record. Managed by create-feature-workspace; do not edit.")
+    }
     [void]$lines.Add("[workspace]")
     [void]$lines.Add("mode = $Mode")
     foreach ($entry in $Entries) {
@@ -317,6 +321,14 @@ function Sync-Workspace {
     }
 }
 
+if ([string]::IsNullOrWhiteSpace($FeatureName) -and $Command -ne "create") {
+    $FeatureName = Split-Path -Leaf (Get-Location).Path
+}
+
+if ([string]::IsNullOrWhiteSpace($FeatureName)) {
+    throw "-FeatureName is required with -Command create"
+}
+
 if ($FeatureName -eq "." -or $FeatureName -eq ".." -or
     $FeatureName.IndexOfAny([System.IO.Path]::GetInvalidFileNameChars()) -ge 0 -or
     $FeatureName.Contains("/") -or $FeatureName.Contains("\")) {
@@ -327,10 +339,17 @@ if ($Command -ne "create" -and $NoWorktrees) {
     throw "-NoWorktrees is only valid with -Command create; mode is persisted in the manifest"
 }
 
+if ([string]::IsNullOrWhiteSpace($WorkspacesRoot) -and $Command -ne "create") {
+    $WorkspacesRoot = Split-Path -Parent (Get-Location).Path
+}
+if ([string]::IsNullOrWhiteSpace($WorkspacesRoot)) {
+    $WorkspacesRoot = "~/workspaces"
+}
+
 $WorkspacesRoot = Resolve-WorkspaceRoot $WorkspacesRoot
 $WorkspaceDir = Join-Path $WorkspacesRoot $FeatureName
-$DesiredPath = Join-Path $WorkspaceDir ".create-feature-workspace.ini"
-$StatePath = Join-Path $WorkspaceDir ".create-feature-workspace.state.ini"
+$DesiredPath = Join-Path $WorkspaceDir ".create-feature-workspace.desired.ini"
+$StatePath = Join-Path $WorkspaceDir ".create-feature-workspace.provisioned.ini"
 
 switch ($Command) {
     "create" {
@@ -355,14 +374,22 @@ switch ($Command) {
     }
     "add" {
         $desired = Read-WorkspaceIni $DesiredPath -Manifest
-        if ([string]::IsNullOrWhiteSpace($Name) -or [string]::IsNullOrWhiteSpace($Path)) {
-            throw "-Name and -Path are required with -Command add"
+        if ([string]::IsNullOrWhiteSpace($FolderName) -or [string]::IsNullOrWhiteSpace($FolderPath)) {
+            throw "-FolderName and -FolderPath are required with -Command add"
         }
-        $values = @{ name = $Name; path = $Path; type = $Type }
-        if (-not [string]::IsNullOrWhiteSpace($Branch)) { $values["branch"] = $Branch }
-        $newEntry = New-Entry "entry-$Name" $values -NoWorktrees:($desired.Mode -eq "symlink")
+        $values = @{ name = $FolderName; path = $FolderPath; type = $Type }
+        $resolvedBranch = $Branch
+        if ([string]::IsNullOrWhiteSpace($resolvedBranch) -and $desired.Mode -ne "symlink" -and $Type -ne "folder") {
+            $expandedPath = Expand-PathValue $FolderPath
+            $resolvedBranch = git -C $expandedPath symbolic-ref --short HEAD 2>$null
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($resolvedBranch)) {
+                throw "Could not detect current branch for $FolderPath; pass -Branch explicitly"
+            }
+        }
+        if (-not [string]::IsNullOrWhiteSpace($resolvedBranch)) { $values["branch"] = $resolvedBranch }
+        $newEntry = New-Entry "entry-$FolderName" $values -NoWorktrees:($desired.Mode -eq "symlink")
         if (@($desired.Entries | Where-Object { $_.Name -eq $newEntry.Name }).Count -ne 0) {
-            throw "Workspace entry already exists: $Name"
+            throw "Workspace entry already exists: $FolderName"
         }
         $updated = @($desired.Entries) + @($newEntry)
         Write-WorkspaceIni $DesiredPath $desired.Mode $updated
@@ -371,12 +398,12 @@ switch ($Command) {
     }
     "remove" {
         $desired = Read-WorkspaceIni $DesiredPath -Manifest
-        if ([string]::IsNullOrWhiteSpace($Name)) {
-            throw "-Name is required with -Command remove"
+        if ([string]::IsNullOrWhiteSpace($FolderName)) {
+            throw "-FolderName is required with -Command remove"
         }
-        $updated = @($desired.Entries | Where-Object { $_.Name -ne $Name })
+        $updated = @($desired.Entries | Where-Object { $_.Name -ne $FolderName })
         if ($updated.Count -eq $desired.Entries.Count) {
-            throw "Workspace entry does not exist: $Name"
+            throw "Workspace entry does not exist: $FolderName"
         }
         # Stage the new manifest; promote only after sync succeeds
         $stagedPath = "$DesiredPath.staged"
@@ -386,3 +413,7 @@ switch ($Command) {
         Move-Item -LiteralPath $stagedPath -Destination $DesiredPath -Force
     }
 }
+
+Write-Host "Workspace metadata:"
+Write-Host "  Desired configuration: $DesiredPath"
+Write-Host "  Provisioned record: $StatePath"

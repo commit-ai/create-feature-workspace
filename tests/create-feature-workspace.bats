@@ -204,10 +204,13 @@ branch = main
 EOF
     run bash "$BATS_TEST_DIRNAME/../$SCRIPT" --feature-name "mani-feat" --config-file "$CONFIG_FILE" --workspaces-root "$TEMP_WS_ROOT"
     [ "$status" -eq 0 ]
-    local manifest="$TEMP_WS_ROOT/mani-feat/.create-feature-workspace.ini"
+    local manifest="$TEMP_WS_ROOT/mani-feat/.create-feature-workspace.desired.ini"
     [ -f "$manifest" ]
     grep -q '^\[workspace\]' "$manifest"
+    grep -q '^; Desired workspace definition\.' "$manifest"
     grep -q 'mode = worktree' "$manifest"
+    [[ "$output" == *"Desired configuration:"* ]]
+    [[ "$output" == *"Provisioned record:"* ]]
 }
 
 @test "create --no-worktrees writes manifest with mode=symlink" {
@@ -219,7 +222,7 @@ branch = main
 EOF
     run bash "$BATS_TEST_DIRNAME/../$SCRIPT" --feature-name "sym-feat" --config-file "$CONFIG_FILE" --workspaces-root "$TEMP_WS_ROOT" --no-worktrees
     [ "$status" -eq 0 ]
-    local manifest="$TEMP_WS_ROOT/sym-feat/.create-feature-workspace.ini"
+    local manifest="$TEMP_WS_ROOT/sym-feat/.create-feature-workspace.desired.ini"
     grep -q 'mode = symlink' "$manifest"
 }
 
@@ -232,8 +235,9 @@ branch = main
 EOF
     run bash "$BATS_TEST_DIRNAME/../$SCRIPT" --feature-name "state-feat" --config-file "$CONFIG_FILE" --workspaces-root "$TEMP_WS_ROOT"
     [ "$status" -eq 0 ]
-    local state="$TEMP_WS_ROOT/state-feat/.create-feature-workspace.state.ini"
+    local state="$TEMP_WS_ROOT/state-feat/.create-feature-workspace.provisioned.ini"
     [ -f "$state" ]
+    grep -q '^; Provisioned workspace record\.' "$state"
     grep -q 'name = repo-alpha' "$state"
 }
 
@@ -257,7 +261,7 @@ EOF
 @test "manifest rejects duplicate entry name" {
     local ws="$TEMP_WS_ROOT/val-dup"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 
@@ -281,7 +285,7 @@ EOF
 @test "manifest rejects entry missing name" {
     local ws="$TEMP_WS_ROOT/val-noname"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 
@@ -298,7 +302,7 @@ EOF
 @test "manifest rejects repository entry missing branch in worktree mode" {
     local ws="$TEMP_WS_ROOT/val-nobranch"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 
@@ -315,7 +319,7 @@ EOF
 @test "manifest rejects unknown key" {
     local ws="$TEMP_WS_ROOT/val-unknownkey"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 
@@ -334,7 +338,7 @@ EOF
 @test "manifest rejects duplicate key within a section" {
     local ws="$TEMP_WS_ROOT/val-dupkey"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 
@@ -353,7 +357,7 @@ EOF
 @test "manifest rejects file that does not begin with [workspace]" {
     local ws="$TEMP_WS_ROOT/val-noworkspace"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [entry-0]
 name = repo-alpha
 path = /fake/repo
@@ -367,7 +371,7 @@ EOF
 @test "manifest rejects invalid mode value" {
     local ws="$TEMP_WS_ROOT/val-badmode"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = invalid
 
@@ -386,7 +390,7 @@ EOF
     local ws="$TEMP_WS_ROOT/val-badheader"
     mkdir -p "$ws"
     printf '[workspace]\nmode = worktree\n\n[entry-0\nname = repo-alpha\npath = /fake/repo\nbranch = main\ntype = repository\n' \
-        > "$ws/.create-feature-workspace.ini"
+        > "$ws/.create-feature-workspace.desired.ini"
     run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "val-badheader" --workspaces-root "$TEMP_WS_ROOT"
     [ "$status" -ne 0 ]
 }
@@ -399,7 +403,7 @@ EOF
     _write_full_shim
     local ws="$TEMP_WS_ROOT/sync-add-wt"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 
@@ -417,7 +421,7 @@ EOF
 @test "sync creates a missing symlink entry declared in the manifest" {
     local ws="$TEMP_WS_ROOT/sync-add-sym"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = symlink
 
@@ -435,11 +439,11 @@ EOF
     _write_full_shim
     local ws="$TEMP_WS_ROOT/sync-rm-wt"
     mkdir -p "$ws/repo-alpha"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 EOF
-    cat << 'EOF' > "$ws/.create-feature-workspace.state.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.provisioned.ini"
 [state]
 mode = worktree
 
@@ -458,11 +462,11 @@ EOF
     local ws="$TEMP_WS_ROOT/sync-rm-sym"
     mkdir -p "$ws"
     ln -s /fake/repo "$ws/repo-alpha"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = symlink
 EOF
-    cat << 'EOF' > "$ws/.create-feature-workspace.state.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.provisioned.ini"
 [state]
 mode = symlink
 
@@ -480,7 +484,7 @@ EOF
     _write_full_shim
     local ws="$TEMP_WS_ROOT/sync-replace"
     mkdir -p "$ws/repo-alpha"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 
@@ -490,7 +494,7 @@ path = /fake/repo
 branch = new-branch
 type = repository
 EOF
-    cat << 'EOF' > "$ws/.create-feature-workspace.state.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.provisioned.ini"
 [state]
 mode = worktree
 
@@ -509,7 +513,7 @@ EOF
     _write_full_shim
     local ws="$TEMP_WS_ROOT/sync-noop"
     mkdir -p "$ws/repo-alpha"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 
@@ -519,7 +523,7 @@ path = /fake/repo
 branch = main
 type = repository
 EOF
-    cat << 'EOF' > "$ws/.create-feature-workspace.state.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.provisioned.ini"
 [state]
 mode = worktree
 
@@ -538,7 +542,7 @@ EOF
     _write_full_shim
     local ws="$TEMP_WS_ROOT/sync-stateupdate"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 
@@ -550,7 +554,7 @@ type = repository
 EOF
     run bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "sync-stateupdate" --workspaces-root "$TEMP_WS_ROOT"
     [ "$status" -eq 0 ]
-    local state="$ws/.create-feature-workspace.state.ini"
+    local state="$ws/.create-feature-workspace.provisioned.ini"
     [ -f "$state" ]
     grep -q 'name = repo-alpha' "$state"
 }
@@ -559,7 +563,7 @@ EOF
     _write_full_shim
     local ws="$TEMP_WS_ROOT/sync-conflict"
     mkdir -p "$ws/repo-alpha"  # unmanaged — not in state
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 
@@ -579,11 +583,11 @@ EOF
     _write_dirty_shim
     local ws="$TEMP_WS_ROOT/sync-dirty"
     mkdir -p "$ws/repo-alpha"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 EOF
-    cat << 'EOF' > "$ws/.create-feature-workspace.state.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.provisioned.ini"
 [state]
 mode = worktree
 
@@ -596,13 +600,13 @@ EOF
     run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" sync --feature-name "sync-dirty" --workspaces-root "$TEMP_WS_ROOT"
     [ "$status" -ne 0 ]
     # state must still list repo-alpha (not updated after failed remove)
-    grep -q 'name = repo-alpha' "$ws/.create-feature-workspace.state.ini"
+    grep -q 'name = repo-alpha' "$ws/.create-feature-workspace.provisioned.ini"
 }
 
 @test "sync rejects --no-worktrees flag" {
     local ws="$TEMP_WS_ROOT/sync-nowt"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 EOF
@@ -619,29 +623,29 @@ EOF
     _write_full_shim
     local ws="$TEMP_WS_ROOT/add-basic"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 EOF
-    cat << 'EOF' > "$ws/.create-feature-workspace.state.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.provisioned.ini"
 [state]
 mode = worktree
 EOF
     run bash "$BATS_TEST_DIRNAME/../$SCRIPT" add \
         --feature-name "add-basic" \
         --workspaces-root "$TEMP_WS_ROOT" \
-        --name repo-alpha \
-        --path /fake/repo \
+        --folder-name repo-alpha \
+        --folder-path /fake/repo \
         --branch main
     [ "$status" -eq 0 ]
     [ -d "$ws/repo-alpha" ]
-    grep -q 'name = repo-alpha' "$ws/.create-feature-workspace.ini"
+    grep -q 'name = repo-alpha' "$ws/.create-feature-workspace.desired.ini"
 }
 
 @test "add rejects a duplicate entry name before modifying the manifest" {
     local ws="$TEMP_WS_ROOT/add-dup"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 
@@ -654,8 +658,8 @@ EOF
     run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" add \
         --feature-name "add-dup" \
         --workspaces-root "$TEMP_WS_ROOT" \
-        --name repo-alpha \
-        --path /fake/repo2 \
+        --folder-name repo-alpha \
+        --folder-path /fake/repo2 \
         --branch develop
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"already exists"* ]]
@@ -664,38 +668,83 @@ EOF
 @test "add of a folder entry creates a symlink even in worktree-mode workspace" {
     local ws="$TEMP_WS_ROOT/add-folder"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 EOF
-    cat << 'EOF' > "$ws/.create-feature-workspace.state.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.provisioned.ini"
 [state]
 mode = worktree
 EOF
     run bash "$BATS_TEST_DIRNAME/../$SCRIPT" add \
         --feature-name "add-folder" \
         --workspaces-root "$TEMP_WS_ROOT" \
-        --name shared-libs \
-        --path /fake/libs \
+        --folder-name shared-libs \
+        --folder-path /fake/libs \
         --type folder
     [ "$status" -eq 0 ]
     [ -L "$ws/shared-libs" ]
 }
 
-@test "add of repository entry in worktree mode rejects missing branch" {
+@test "add infers branch from repo when --branch is omitted in worktree mode" {
+    # Override the shim so that symbolic-ref returns a branch name and
+    # worktree add still creates the destination directory.
+    cat << 'SHIM' > "$SHIM_DIR/git"
+#!/bin/bash
+if [[ "$*" == *"symbolic-ref"* ]]; then
+    echo "inferred-branch"
+    exit 0
+fi
+if [[ "$*" == *"worktree add"* ]]; then
+    args=("$@")
+    count=$#
+    dest="${args[$((count - 2))]}"
+    mkdir -p "$dest"
+fi
+exit 0
+SHIM
+    chmod +x "$SHIM_DIR/git"
+
+    local ws="$TEMP_WS_ROOT/add-infer-branch"
+    mkdir -p "$ws"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
+[workspace]
+mode = worktree
+EOF
+    run bash "$BATS_TEST_DIRNAME/../$SCRIPT" add \
+        --feature-name "add-infer-branch" \
+        --workspaces-root "$TEMP_WS_ROOT" \
+        --folder-name repo-alpha \
+        --folder-path /fake/repo
+    [ "$status" -eq 0 ]
+    grep -q 'branch = inferred-branch' "$ws/.create-feature-workspace.desired.ini"
+}
+
+@test "add of repository entry in worktree mode fails when branch cannot be inferred" {
+    # Override the shim so that symbolic-ref fails (detached HEAD / not a git repo).
+    cat << 'SHIM' > "$SHIM_DIR/git"
+#!/bin/bash
+if [[ "$*" == *"symbolic-ref"* ]]; then
+    echo "fatal: not a git repository" >&2
+    exit 128
+fi
+exit 0
+SHIM
+    chmod +x "$SHIM_DIR/git"
+
     local ws="$TEMP_WS_ROOT/add-nobranch"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 EOF
     run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" add \
         --feature-name "add-nobranch" \
         --workspaces-root "$TEMP_WS_ROOT" \
-        --name repo-alpha \
-        --path /fake/repo
+        --folder-name repo-alpha \
+        --folder-path /fake/repo
     [ "$status" -ne 0 ]
-    [[ "$stderr" == *"Missing name/path/branch"* ]]
+    [[ "$stderr" == *"Could not detect current branch"* ]]
 }
 
 # ---------------------------------------------------------------------------
@@ -706,7 +755,7 @@ EOF
     _write_full_shim
     local ws="$TEMP_WS_ROOT/remove-basic"
     mkdir -p "$ws/repo-alpha"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 
@@ -716,7 +765,7 @@ path = /fake/repo
 branch = main
 type = repository
 EOF
-    cat << 'EOF' > "$ws/.create-feature-workspace.state.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.provisioned.ini"
 [state]
 mode = worktree
 
@@ -729,23 +778,23 @@ EOF
     run bash "$BATS_TEST_DIRNAME/../$SCRIPT" remove \
         --feature-name "remove-basic" \
         --workspaces-root "$TEMP_WS_ROOT" \
-        --name repo-alpha
+        --folder-name repo-alpha
     [ "$status" -eq 0 ]
     [ ! -e "$ws/repo-alpha" ]
-    ! grep -q 'name = repo-alpha' "$ws/.create-feature-workspace.ini"
+    ! grep -q 'name = repo-alpha' "$ws/.create-feature-workspace.desired.ini"
 }
 
 @test "remove of an unrecognized name is rejected with a visible error" {
     local ws="$TEMP_WS_ROOT/remove-notfound"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 EOF
     run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" remove \
         --feature-name "remove-notfound" \
         --workspaces-root "$TEMP_WS_ROOT" \
-        --name nonexistent
+        --folder-name nonexistent
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"not found"* ]]
 }
@@ -754,7 +803,7 @@ EOF
     _write_dirty_shim
     local ws="$TEMP_WS_ROOT/remove-dirty"
     mkdir -p "$ws/repo-alpha"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 
@@ -764,7 +813,7 @@ path = /fake/repo
 branch = main
 type = repository
 EOF
-    cat << 'EOF' > "$ws/.create-feature-workspace.state.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.provisioned.ini"
 [state]
 mode = worktree
 
@@ -777,9 +826,9 @@ EOF
     run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" remove \
         --feature-name "remove-dirty" \
         --workspaces-root "$TEMP_WS_ROOT" \
-        --name repo-alpha
+        --folder-name repo-alpha
     [ "$status" -ne 0 ]
-    grep -q 'name = repo-alpha' "$ws/.create-feature-workspace.ini"
+    grep -q 'name = repo-alpha' "$ws/.create-feature-workspace.desired.ini"
 }
 
 # ---------------------------------------------------------------------------
@@ -790,16 +839,16 @@ EOF
     _write_full_shim
     local ws="$TEMP_WS_ROOT/manual-add"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 EOF
-    cat << 'EOF' > "$ws/.create-feature-workspace.state.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.provisioned.ini"
 [state]
 mode = worktree
 EOF
     # manually add an entry
-    cat << 'EOF' >> "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' >> "$ws/.create-feature-workspace.desired.ini"
 
 [entry-0]
 name = repo-alpha
@@ -816,11 +865,11 @@ EOF
     _write_full_shim
     local ws="$TEMP_WS_ROOT/manual-rm"
     mkdir -p "$ws/repo-alpha"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 EOF
-    cat << 'EOF' > "$ws/.create-feature-workspace.state.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.provisioned.ini"
 [state]
 mode = worktree
 
@@ -838,7 +887,7 @@ EOF
 @test "manually introduced invalid section causes sync to reject before changing anything" {
     local ws="$TEMP_WS_ROOT/manual-invalid"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 
@@ -849,7 +898,7 @@ branch = main
 type = repository
 unknown = bad
 EOF
-    cat << 'EOF' > "$ws/.create-feature-workspace.state.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.provisioned.ini"
 [state]
 mode = worktree
 EOF
@@ -865,15 +914,15 @@ EOF
 @test "entry name containing / is rejected" {
     local ws="$TEMP_WS_ROOT/name-slash"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 EOF
     run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" add \
         --feature-name "name-slash" \
         --workspaces-root "$TEMP_WS_ROOT" \
-        --name "bad/name" \
-        --path /fake/repo \
+        --folder-name "bad/name" \
+        --folder-path /fake/repo \
         --branch main
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"invalid"* || "$stderr" == *"entry name"* ]]
@@ -882,15 +931,15 @@ EOF
 @test "entry name containing backslash is rejected" {
     local ws="$TEMP_WS_ROOT/name-backslash"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 EOF
     run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" add \
         --feature-name "name-backslash" \
         --workspaces-root "$TEMP_WS_ROOT" \
-        --name 'bad\name' \
-        --path /fake/repo \
+        --folder-name 'bad\name' \
+        --folder-path /fake/repo \
         --branch main
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"invalid"* || "$stderr" == *"entry name"* ]]
@@ -899,15 +948,15 @@ EOF
 @test "entry name of . is rejected" {
     local ws="$TEMP_WS_ROOT/name-dot"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 EOF
     run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" add \
         --feature-name "name-dot" \
         --workspaces-root "$TEMP_WS_ROOT" \
-        --name "." \
-        --path /fake/repo \
+        --folder-name "." \
+        --folder-path /fake/repo \
         --branch main
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"invalid"* || "$stderr" == *"entry name"* ]]
@@ -916,50 +965,235 @@ EOF
 @test "entry name of .. is rejected" {
     local ws="$TEMP_WS_ROOT/name-dotdot"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 EOF
     run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" add \
         --feature-name "name-dotdot" \
         --workspaces-root "$TEMP_WS_ROOT" \
-        --name ".." \
-        --path /fake/repo \
+        --folder-name ".." \
+        --folder-path /fake/repo \
         --branch main
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"invalid"* || "$stderr" == *"entry name"* ]]
 }
 
-@test "entry name equal to .create-feature-workspace.ini is rejected" {
+@test "entry name equal to .create-feature-workspace.desired.ini is rejected" {
     local ws="$TEMP_WS_ROOT/name-reserved1"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 EOF
     run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" add \
         --feature-name "name-reserved1" \
         --workspaces-root "$TEMP_WS_ROOT" \
-        --name ".create-feature-workspace.ini" \
-        --path /fake/repo \
+        --folder-name ".create-feature-workspace.desired.ini" \
+        --folder-path /fake/repo \
         --branch main
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"invalid"* || "$stderr" == *"entry name"* || "$stderr" == *"reserved"* ]]
 }
 
-@test "entry name equal to .create-feature-workspace.state.ini is rejected" {
+@test "entry name equal to .create-feature-workspace.provisioned.ini is rejected" {
     local ws="$TEMP_WS_ROOT/name-reserved2"
     mkdir -p "$ws"
-    cat << 'EOF' > "$ws/.create-feature-workspace.ini"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
 [workspace]
 mode = worktree
 EOF
     run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" add \
         --feature-name "name-reserved2" \
         --workspaces-root "$TEMP_WS_ROOT" \
-        --name ".create-feature-workspace.state.ini" \
-        --path /fake/repo \
+        --folder-name ".create-feature-workspace.provisioned.ini" \
+        --folder-path /fake/repo \
         --branch main
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"invalid"* || "$stderr" == *"entry name"* || "$stderr" == *"reserved"* ]]
+}
+
+# ---------------------------------------------------------------------------
+# Phase 2a: help output
+# ---------------------------------------------------------------------------
+
+@test "--help does not show --feature-name for add, remove, or sync" {
+    run --separate-stderr bash "$BATS_TEST_DIRNAME/../$SCRIPT" --help
+    [ "$status" -eq 0 ]
+    echo "$stderr" | grep -qF -- "--feature-name NAME --config-file PATH"
+    ! echo "$stderr" | grep -qE "add.*--feature-name"
+    ! echo "$stderr" | grep -qE "remove.*--feature-name"
+    ! echo "$stderr" | grep -qE "sync.*--feature-name"
+}
+
+# ---------------------------------------------------------------------------
+# Phase 2b: CWD inference of --feature-name
+# ---------------------------------------------------------------------------
+
+@test "sync infers feature name from CWD when --feature-name is omitted" {
+    _write_full_shim
+    local ws="$TEMP_WS_ROOT/cwd-infer-sync"
+    mkdir -p "$ws"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
+[workspace]
+mode = worktree
+
+[entry-0]
+name = repo-alpha
+path = /fake/repo
+branch = main
+type = repository
+EOF
+    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync --workspaces-root '$TEMP_WS_ROOT'"
+    [ "$status" -eq 0 ]
+    [ -d "$ws/repo-alpha" ]
+}
+
+@test "add infers feature name from CWD when --feature-name is omitted" {
+    _write_full_shim
+    local ws="$TEMP_WS_ROOT/cwd-infer-add"
+    mkdir -p "$ws"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
+[workspace]
+mode = worktree
+EOF
+    cat << 'EOF' > "$ws/.create-feature-workspace.provisioned.ini"
+[state]
+mode = worktree
+EOF
+    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' add \
+        --workspaces-root '$TEMP_WS_ROOT' \
+        --folder-name repo-alpha \
+        --folder-path /fake/repo \
+        --branch main"
+    [ "$status" -eq 0 ]
+    [ -d "$ws/repo-alpha" ]
+    grep -q 'name = repo-alpha' "$ws/.create-feature-workspace.desired.ini"
+}
+
+@test "remove infers feature name from CWD when --feature-name is omitted" {
+    _write_full_shim
+    local ws="$TEMP_WS_ROOT/cwd-infer-remove"
+    mkdir -p "$ws/repo-alpha"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
+[workspace]
+mode = worktree
+
+[entry-0]
+name = repo-alpha
+path = /fake/repo
+branch = main
+type = repository
+EOF
+    cat << 'EOF' > "$ws/.create-feature-workspace.provisioned.ini"
+[state]
+mode = worktree
+
+[entry-0]
+name = repo-alpha
+path = /fake/repo
+branch = main
+type = repository
+EOF
+    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' remove \
+        --workspaces-root '$TEMP_WS_ROOT' \
+        --folder-name repo-alpha"
+    [ "$status" -eq 0 ]
+    [ ! -e "$ws/repo-alpha" ]
+    ! grep -q 'name = repo-alpha' "$ws/.create-feature-workspace.desired.ini"
+}
+
+# ---------------------------------------------------------------------------
+# Phase 2c: CWD inference of --workspaces-root (from parent of CWD)
+# ---------------------------------------------------------------------------
+
+@test "sync infers workspaces-root from CWD parent when neither flag is provided" {
+    _write_full_shim
+    local ws="$TEMP_WS_ROOT/cwd-infer-root-sync"
+    mkdir -p "$ws"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
+[workspace]
+mode = worktree
+
+[entry-0]
+name = repo-alpha
+path = /fake/repo
+branch = main
+type = repository
+EOF
+    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
+    [ "$status" -eq 0 ]
+    [ -d "$ws/repo-alpha" ]
+}
+
+@test "add infers workspaces-root from CWD parent when neither flag is provided" {
+    _write_full_shim
+    local ws="$TEMP_WS_ROOT/cwd-infer-root-add"
+    mkdir -p "$ws"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
+[workspace]
+mode = worktree
+EOF
+    cat << 'EOF' > "$ws/.create-feature-workspace.provisioned.ini"
+[state]
+mode = worktree
+EOF
+    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' add \
+        --folder-name repo-alpha \
+        --folder-path /fake/repo \
+        --branch main"
+    [ "$status" -eq 0 ]
+    [ -d "$ws/repo-alpha" ]
+    grep -q 'name = repo-alpha' "$ws/.create-feature-workspace.desired.ini"
+}
+
+@test "remove infers workspaces-root from CWD parent when neither flag is provided" {
+    _write_full_shim
+    local ws="$TEMP_WS_ROOT/cwd-infer-root-remove"
+    mkdir -p "$ws/repo-alpha"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
+[workspace]
+mode = worktree
+
+[entry-0]
+name = repo-alpha
+path = /fake/repo
+branch = main
+type = repository
+EOF
+    cat << 'EOF' > "$ws/.create-feature-workspace.provisioned.ini"
+[state]
+mode = worktree
+
+[entry-0]
+name = repo-alpha
+path = /fake/repo
+branch = main
+type = repository
+EOF
+    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' remove \
+        --folder-name repo-alpha"
+    [ "$status" -eq 0 ]
+    [ ! -e "$ws/repo-alpha" ]
+    ! grep -q 'name = repo-alpha' "$ws/.create-feature-workspace.desired.ini"
+}
+
+@test "sync with explicit --feature-name but no --workspaces-root infers root from CWD parent" {
+    _write_full_shim
+    local ws="$TEMP_WS_ROOT/cwd-infer-root-explicit-feat"
+    mkdir -p "$ws"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
+[workspace]
+mode = worktree
+
+[entry-0]
+name = repo-alpha
+path = /fake/repo
+branch = main
+type = repository
+EOF
+    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync \
+        --feature-name cwd-infer-root-explicit-feat"
+    [ "$status" -eq 0 ]
+    [ -d "$ws/repo-alpha" ]
 }

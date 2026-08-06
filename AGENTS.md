@@ -12,7 +12,7 @@
 ## Architecture
 
 - `create-feature-workspace.sh` and `create-feature-workspace.ps1` are parallel Unix and Windows implementations. Both create and manage a workspace at `<workspaces-root>/<feature-name>/`.
-- `create` reads an INI-like repository configuration, writes `.create-feature-workspace.ini` as the desired manifest, then reconciles it into workspace artifacts and `.create-feature-workspace.state.ini` as the provisioned state.
+- `create` reads an INI-like repository configuration, writes `.create-feature-workspace.desired.ini` as the desired manifest, then reconciles it into workspace artifacts and `.create-feature-workspace.provisioned.ini` as the provisioned state.
 - `sync` reconciles the manifest with the state; `add` updates the manifest and provisions an entry; `remove` stages a manifest update, reconciles it, then promotes it only on success. The Bash CLI selects these with an optional first positional action; PowerShell uses `-Command`.
 - Repository entries use `git -C <repo-path> worktree add -b <feature-name> <workspace-dir>/<entry-name> <branch>` in `worktree` mode. `--no-worktrees` / `-NoWorktrees` selects the persisted `symlink` mode during `create`. Entries with `type = folder` are always symlinked.
 - `install-create-feature-workspace.sh` is Unix-only setup: it marks the Bash entry point executable and creates, preserves, or updates the `create-feature-workspace` symlink in the chosen bin directory.
