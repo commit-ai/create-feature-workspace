@@ -410,8 +410,14 @@ create_desired_entry() {
   if [[ "${desired_types[index]}" == "folder" || "$manifest_mode" == "symlink" ]]; then
     ln -s "$(expand_path "${desired_paths[index]}")" "$destination"
   else
-    git -C "$(expand_path "${desired_paths[index]}")" worktree add -b "$feature_name" \
-      "$destination" "${desired_branches[index]}"
+    local repo_path
+    repo_path="$(expand_path "${desired_paths[index]}")"
+    if git -C "$repo_path" rev-parse --verify "$feature_name" >/dev/null 2>&1; then
+      git -C "$repo_path" worktree add "$destination" "$feature_name"
+    else
+      git -C "$repo_path" worktree add -b "$feature_name" \
+        "$destination" "${desired_branches[index]}"
+    fi
   fi
 
   state_names+=("${desired_names[index]}")

@@ -1207,3 +1207,44 @@ EOF
     [ "$status" -eq 0 ]
     [ -d "$ws/repo-alpha" ]
 }
+
+@test "sync succeeds when feature branch already exists in the repo" {
+    local ws="$TEMP_WS_ROOT/branch-exists-feat"
+    local feature_name
+    feature_name="$(basename "$ws")"
+    mkdir -p "$ws"
+    cat << EOF > "$ws/.create-feature-workspace.desired.ini"
+[workspace]
+mode = worktree
+
+[entry-0]
+name = repo-alpha
+path = /fake/repo
+branch = main
+type = repository
+EOF
+    # Shim: rev-parse --verify <feature> → branch exists; worktree add without -b → ok
+    cat << SHIM > "$SHIM_DIR/git"
+#!/bin/bash
+echo "MOCK GIT CALLED: \$*" >&2
+if [[ "\$*" == *"rev-parse --verify"* ]]; then
+    exit 0
+fi
+if [[ "\$*" == *"worktree add -b"* ]]; then
+    echo "fatal: a branch named already exists" >&2
+    exit 128
+fi
+if [[ "\$*" == *"worktree add"* ]]; then
+    args=("\$@")
+    count=\$#
+    dest="\${args[\$((count - 2))]}"
+    mkdir -p "\$dest"
+fi
+exit 0
+SHIM
+    chmod +x "$SHIM_DIR/git"
+    run bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' sync"
+    [ "$status" -eq 0 ]
+    [ -d "$ws/repo-alpha" ]
+    grep -q 'name = repo-alpha' "$ws/.create-feature-workspace.provisioned.ini"
+}

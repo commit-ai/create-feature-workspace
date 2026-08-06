@@ -1148,4 +1148,51 @@ mode = worktree
         Push-Location $ws
         try { { & $scriptPath -Command add -FolderName ".create-feature-workspace.state.ini" -FolderPath /fake/repo -Branch main } | Should Throw } finally { Pop-Location }
     }
+
+    It "sync succeeds when feature branch already exists in the repo" {
+        $feature = "branch-exists-$(Get-Random)"
+        $ws = Join-Path $workspacesRoot $feature
+        New-Item -ItemType Directory -Force -Path $ws | Out-Null
+        @"
+[workspace]
+mode = worktree
+
+[entry-0]
+name = repo-alpha
+path = /fake/repo
+branch = main
+type = repository
+"@ | Set-Content (Join-Path $ws ".create-feature-workspace.ini")
+
+        # Shim: rev-parse --verify => branch exists; worktree add -b => fail; worktree add (no -b) => ok
+        $shimDir = Join-Path $PSScriptRoot "shim-$feature"
+        $body = @'
+$argsStr = $args -join " "
+if ($argsStr -match "rev-parse --verify") {
+    exit 0
+}
+if ($argsStr -match "worktree add -b") {
+    Write-Error "fatal: a branch named already exists"
+    exit 128
+}
+if ($argsStr -match "worktree add") {
+    $dest = $args[-2]
+    New-Item -ItemType Directory -Force -Path $dest | Out-Null
+}
+exit 0
+'@
+        $oldPath = $env:PATH
+        $env:PATH = "$(New-GitShim $shimDir $body);$oldPath"
+        Push-Location $ws
+        try {
+            & $scriptPath -Command sync
+            Test-Path (Join-Path $ws "repo-alpha") | Should Be $true
+            $state = Get-Content (Join-Path $ws ".create-feature-workspace.state.ini") -Raw
+            $state | Should Match "name = repo-alpha"
+        } finally {
+            Pop-Location
+            $env:PATH = $oldPath
+            Remove-Item -Recurse -Force $shimDir -ErrorAction SilentlyContinue
+        }
+    }
 }

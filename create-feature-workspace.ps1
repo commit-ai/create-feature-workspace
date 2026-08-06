@@ -272,7 +272,12 @@ function Add-TrackedArtifact {
         return
     }
 
-    git -C $source worktree add -b $FeatureName $destination $Entry.Branch
+    git -C $source rev-parse --verify $FeatureName 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        git -C $source worktree add $destination $FeatureName
+    } else {
+        git -C $source worktree add -b $FeatureName $destination $Entry.Branch
+    }
     if ($LASTEXITCODE -ne 0) {
         throw "git worktree add failed for entry [$($Entry.Name)]"
     }
