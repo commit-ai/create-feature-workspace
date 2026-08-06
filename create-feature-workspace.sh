@@ -471,6 +471,16 @@ create_workspace() {
   sync_workspace
 }
 
+stage_and_sync() {
+  local staged="${manifest_file}.staged"
+  local orig="$manifest_file"
+  manifest_file="$staged"
+  write_manifest
+  sync_workspace
+  mv "$staged" "$orig"
+  manifest_file="$orig"
+}
+
 add_entry() {
   assert_entry_name "$entry_name"
   read_ini "$manifest_file" "workspace" "true"
@@ -487,8 +497,7 @@ add_entry() {
   entry_branches+=("$entry_branch")
   entry_types+=("$entry_type")
   validate_entries "true"
-  write_manifest
-  sync_workspace
+  stage_and_sync
 }
 
 remove_entry() {
@@ -514,17 +523,7 @@ remove_entry() {
   entry_paths=("${new_paths[@]+"${new_paths[@]}"}")
   entry_branches=("${new_branches[@]+"${new_branches[@]}"}")
   entry_types=("${new_types[@]+"${new_types[@]}"}")
-  # Stage the new manifest; sync using the staged version; commit on success
-  local staged_manifest="${manifest_file}.staged"
-  local orig_manifest_file="$manifest_file"
-  manifest_file="$staged_manifest"
-  write_manifest
-  # Point sync at the staged manifest so it sees the desired state
-  manifest_file="$staged_manifest"
-  sync_workspace
-  # Sync succeeded — promote the staged manifest
-  mv "$staged_manifest" "$orig_manifest_file"
-  manifest_file="$orig_manifest_file"
+  stage_and_sync
 }
 
 case "$action" in

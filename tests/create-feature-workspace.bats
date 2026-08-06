@@ -781,6 +781,36 @@ EOF
     [[ "$stderr" == *"Could not detect current branch"* ]]
 }
 
+@test "add does not modify the manifest when sync fails" {
+    cat << 'SHIM' > "$SHIM_DIR/git"
+#!/bin/bash
+if [[ "$*" == *"worktree add"* ]]; then
+    echo "fatal: mock failure" >&2
+    exit 1
+fi
+exit 0
+SHIM
+    chmod +x "$SHIM_DIR/git"
+
+    local ws="$TEMP_WS_ROOT/add-rollback"
+    mkdir -p "$ws"
+    cat << 'EOF' > "$ws/.create-feature-workspace.desired.ini"
+[workspace]
+mode = worktree
+EOF
+    cat << 'EOF' > "$ws/.create-feature-workspace.provisioned.ini"
+[state]
+mode = worktree
+EOF
+    run --separate-stderr bash -c "cd '$ws' && bash '$BATS_TEST_DIRNAME/../$SCRIPT' add \
+        --folder-name repo-beta \
+        --folder-path /fake/repo-beta \
+        --branch main"
+    [ "$status" -ne 0 ]
+    run grep "name = repo-beta" "$ws/.create-feature-workspace.desired.ini"
+    [ "$status" -ne 0 ]
+}
+
 # ---------------------------------------------------------------------------
 # Phase 0f: remove command
 # ---------------------------------------------------------------------------

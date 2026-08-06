@@ -283,6 +283,21 @@ function Add-TrackedArtifact {
     }
 }
 
+function Invoke-StageAndSync {
+    param(
+        [string]$Mode,
+        [object[]]$Entries,
+        [string]$DesiredPath,
+        [string]$StatePath,
+        [string]$WorkspaceDir
+    )
+    $stagedPath = "$DesiredPath.staged"
+    Write-WorkspaceIni $stagedPath $Mode $Entries
+    $staged = [PSCustomObject]@{ Mode = $Mode; Entries = $Entries }
+    Sync-Workspace $staged $stagedPath $StatePath $WorkspaceDir
+    Move-Item -LiteralPath $stagedPath -Destination $DesiredPath -Force
+}
+
 function Sync-Workspace {
     param(
         [object]$Desired,
@@ -401,9 +416,7 @@ switch ($Command) {
             throw "Workspace entry already exists: $FolderName"
         }
         $updated = @($desired.Entries) + @($newEntry)
-        Write-WorkspaceIni $DesiredPath $desired.Mode $updated
-        $desired = [PSCustomObject]@{ Mode = $desired.Mode; Entries = $updated }
-        Sync-Workspace $desired $DesiredPath $StatePath $WorkspaceDir
+        Invoke-StageAndSync $desired.Mode $updated $DesiredPath $StatePath $WorkspaceDir
     }
     "remove" {
         $desired = Read-WorkspaceIni $DesiredPath -Manifest
@@ -414,12 +427,7 @@ switch ($Command) {
         if ($updated.Count -eq $desired.Entries.Count) {
             throw "Workspace entry does not exist: $FolderName"
         }
-        # Stage the new manifest; promote only after sync succeeds
-        $stagedPath = "$DesiredPath.staged"
-        Write-WorkspaceIni $stagedPath $desired.Mode $updated
-        $stagedDesired = [PSCustomObject]@{ Mode = $desired.Mode; Entries = $updated }
-        Sync-Workspace $stagedDesired $stagedPath $StatePath $WorkspaceDir
-        Move-Item -LiteralPath $stagedPath -Destination $DesiredPath -Force
+        Invoke-StageAndSync $desired.Mode $updated $DesiredPath $StatePath $WorkspaceDir
     }
 }
 

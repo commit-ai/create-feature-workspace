@@ -883,6 +883,42 @@ mode = worktree
         try { { & $scriptPath -Command add -FolderName repo-alpha -FolderPath /fake/repo } | Should Throw } finally { Pop-Location }
     }
 
+    It "add does not modify the manifest when sync fails" {
+        $feature = "add-rollback-$(Get-Random)"
+        $ws = Join-Path $workspacesRoot $feature
+        New-Item -ItemType Directory -Force -Path $ws | Out-Null
+        $desiredPath = Join-Path $ws ".create-feature-workspace.desired.ini"
+        @"
+[workspace]
+mode = worktree
+"@ | Set-Content $desiredPath
+        @"
+[state]
+mode = worktree
+"@ | Set-Content (Join-Path $ws ".create-feature-workspace.provisioned.ini")
+        $shimDir = Join-Path $PSScriptRoot "shim-$feature"
+        $failBody = @'
+$argsStr = $args -join " "
+if ($argsStr -match "worktree add") {
+    Write-Error "fatal: mock failure"
+    exit 1
+}
+exit 0
+'@
+        $oldPath = $env:PATH
+        $env:PATH = "$(New-GitShim $shimDir $failBody);$oldPath"
+        Push-Location $ws
+        try {
+            { & $scriptPath -Command add -FolderName repo-beta -FolderPath /fake/repo-beta -Branch main } | Should Throw
+            $content = Get-Content $desiredPath -Raw
+            $content | Should Not Match "repo-beta"
+        } finally {
+            Pop-Location
+            $env:PATH = $oldPath
+            Remove-Item -Recurse -Force $shimDir -ErrorAction SilentlyContinue
+        }
+    }
+
     # -----------------------------------------------------------------------
     # Phase 0f: remove command
     # -----------------------------------------------------------------------
