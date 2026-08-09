@@ -1,0 +1,21 @@
+{
+  "$schema": "https://www.schemastore.org/claude-code-marketplace.json",
+  "name": "create-feature-workspace-marketplace",
+  "description": "Plugin marketplace for the create-feature-workspace, bundling skills for installing and using the create-feature-workspace script effectively.",
+  "owner": {
+    "name": "Gal Ziv"
+  },
+  "metadata": {
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "name": "create-feature-workspace",
+      "source": "./plugins/create-feature-workspace",
+      "description": "Skills and hooks for the create-feature-workspace script: installation and usage helpers.",
+      "category": "developer-tools",
+      "tags": ["create-feature-workspace", "installation", "usage", "skills", "workspace"]
+    }
+  ]
+}
+  

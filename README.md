@@ -51,6 +51,27 @@ If you prefer to skip installation and run the script directly:
   -WorkspacesRoot ~/workspaces
 ```
 
+## Workspace Commands
+
+After creating a workspace, run these from inside the workspace directory:
+
+| Command | Unix | PowerShell |
+|---------|------|------------|
+| Sync desired state | `create-feature-workspace sync` | `create-feature-workspace -Command sync` |
+| Add an entry | `create-feature-workspace add --folder-name NAME --folder-path PATH` | `create-feature-workspace -Command add -FolderName NAME -FolderPath PATH` |
+| Remove an entry | `create-feature-workspace remove --folder-name NAME` | `create-feature-workspace -Command remove -FolderName NAME` |
+
+## Claude Code Plugin
+
+A Claude Code plugin is available in the `plugins/create-feature-workspace/` directory. It provides four skills:
+
+- **install-create-feature-workspace** — guided installation on Unix and Windows
+- **use-create-feature-workspace** — usage reference for all commands and config format
+- **add-to-feature-workspace** — step-by-step guidance for adding a new entry
+- **remove-from-feature-workspace** — step-by-step guidance for removing an entry
+
+The plugin is registered in `marketplace.json` and can be installed via the Claude Code marketplace.
+
 ## To Use It From Anywhere - Add Its Folder to the PATH Environment Variable:
 
 ```bash

@@ -1,0 +1,9 @@
+{
+  "name": "create-feature-workspace",
+  "description": "Skills and hooks for the create-feature-workspace script: installation and usage helpers.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Gal Ziv"
+  },
+  "keywords": ["create-feature-workspace", "installation", "usage", "skills", "workspace"]
+}
