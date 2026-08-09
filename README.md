@@ -25,6 +25,25 @@ If you prefer not to install a symlink, you can also run the script directly:
 
 ### Windows Operating Systems (PowerShell)
 
+Run the installer once from the directory where you cloned this repo:
+
+```powershell
+.\install-create-feature-workspace.ps1
+```
+
+This copies the script and creates a `create-feature-workspace.cmd` wrapper in `~\.local\bin` (no Administrator or Developer Mode required). After that you can invoke it from any terminal:
+
+```powershell
+create-feature-workspace `
+  -FeatureName feature-x `
+  -ConfigFile .\repos.ini `
+  -WorkspacesRoot ~/workspaces
+```
+
+If `~\.local\bin` is not yet in your PATH, the installer will tell you. Add it to your PowerShell profile to persist it across sessions.
+
+If you prefer to skip installation and run the script directly:
+
 ```powershell
 .\create-feature-workspace.ps1 `
   -FeatureName feature-x `

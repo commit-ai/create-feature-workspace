@@ -3,34 +3,25 @@ Describe "install-create-feature-workspace.ps1" {
     BeforeAll {
         $scriptPath = Join-Path $PSScriptRoot "..\install-create-feature-workspace.ps1"
         $tempRoot = Join-Path $PSScriptRoot "temp-installer"
+        $expectedPsContent = Get-Content (Join-Path $PSScriptRoot "..\create-feature-workspace.ps1") -Raw
+        $expectedCmdContent = "@echo off`r`npowershell.exe -ExecutionPolicy RemoteSigned -File `"%~dp0create-feature-workspace.ps1`" %*`r`n"
     }
 
     AfterAll {
         if (Test-Path $tempRoot) { Remove-Item -Recurse -Force $tempRoot }
     }
 
-    It "Creates a symlink in the requested bin directory" {
+    It "Copies script and creates .cmd wrapper in the requested bin directory" {
         $binDir = Join-Path $tempRoot "bin-$(Get-Random)"
         try {
             & $scriptPath -BinDir $binDir
-            $linkPath = Join-Path $binDir "create-feature-workspace.ps1"
-            Test-Path $linkPath | Should -Be $true
-            $item = Get-Item $linkPath -Force
-            $item.LinkType | Should -Be "SymbolicLink"
-            $expectedTarget = (Get-Item (Join-Path $PSScriptRoot "..\create-feature-workspace.ps1")).FullName
-            $item.Target | Should -Be $expectedTarget
-        } finally {
-            if (Test-Path $binDir) { Remove-Item -Recurse -Force $binDir }
-        }
-    }
-
-    It "Fails when target path is a regular file" {
-        $binDir = Join-Path $tempRoot "bin-$(Get-Random)"
-        New-Item -ItemType Directory -Force -Path $binDir | Out-Null
-        $linkPath = Join-Path $binDir "create-feature-workspace.ps1"
-        "placeholder" | Set-Content $linkPath
-        try {
-            { & $scriptPath -BinDir $binDir } | Should -Throw
+            $psPath  = Join-Path $binDir "create-feature-workspace.ps1"
+            $cmdPath = Join-Path $binDir "create-feature-workspace.cmd"
+            Test-Path $psPath  | Should -Be $true
+            Test-Path $cmdPath | Should -Be $true
+            (Get-Item $psPath -Force).LinkType | Should -BeNullOrEmpty
+            Get-Content $psPath -Raw | Should -Be $expectedPsContent
+            Get-Content $cmdPath -Raw | Should -Be $expectedCmdContent
         } finally {
             if (Test-Path $binDir) { Remove-Item -Recurse -Force $binDir }
         }
@@ -45,12 +36,13 @@ Describe "install-create-feature-workspace.ps1" {
             $env:HOME = $fakeHome
             $env:PATH = "C:\Windows\System32"
             $output = & $scriptPath *>&1 | Out-String
-            $expectedLink = Join-Path $fakeHome ".local\bin\create-feature-workspace.ps1"
-            Test-Path $expectedLink | Should -Be $true
-            (Get-Item $expectedLink -Force).LinkType | Should -Be "SymbolicLink"
-            $output | Should -Match "Installed symlink at:"
+            $psPath  = Join-Path $fakeHome ".local\bin\create-feature-workspace.ps1"
+            $cmdPath = Join-Path $fakeHome ".local\bin\create-feature-workspace.cmd"
+            Test-Path $psPath  | Should -Be $true
+            Test-Path $cmdPath | Should -Be $true
+            (Get-Item $psPath -Force).LinkType | Should -BeNullOrEmpty
+            $output | Should -Match "Installed:"
             $output | Should -Match "is not currently in PATH"
-            $output | Should -Not -Match "Created symlink:"
         } finally {
             $env:HOME = $originalHome
             $env:PATH = $originalPath
@@ -58,30 +50,42 @@ Describe "install-create-feature-workspace.ps1" {
         }
     }
 
-    It "Is idempotent when symlink already points to correct target" {
+    It "Is idempotent: second run prints 'Already up to date'" {
         $binDir = Join-Path $tempRoot "bin-$(Get-Random)"
         try {
             & $scriptPath -BinDir $binDir | Out-Null
             $output = & $scriptPath -BinDir $binDir *>&1 | Out-String
-            $output | Should -Match "Symlink already configured"
+            $output | Should -Match "Already up to date"
         } finally {
             if (Test-Path $binDir) { Remove-Item -Recurse -Force $binDir }
         }
     }
 
-    It "Replaces an outdated symlink pointing to a different target" {
+    It "Overwrites stale copy when .ps1 content differs" {
         $binDir = Join-Path $tempRoot "bin-$(Get-Random)"
-        $linkPath = Join-Path $binDir "create-feature-workspace.ps1"
+        New-Item -ItemType Directory -Force -Path $binDir | Out-Null
+        $psPath = Join-Path $binDir "create-feature-workspace.ps1"
+        "# stale content" | Set-Content $psPath
+        try {
+            & $scriptPath -BinDir $binDir
+            Get-Content $psPath -Raw | Should -Be $expectedPsContent
+        } finally {
+            if (Test-Path $binDir) { Remove-Item -Recurse -Force $binDir }
+        }
+    }
+
+    It "Replaces an old symlink with a copy" {
+        $binDir = Join-Path $tempRoot "bin-$(Get-Random)"
+        $psPath = Join-Path $binDir "create-feature-workspace.ps1"
         $fakeTarget = Join-Path $tempRoot "fake-$(Get-Random).ps1"
         New-Item -ItemType Directory -Force -Path $binDir | Out-Null
         "# fake" | Set-Content $fakeTarget
-        New-Item -ItemType SymbolicLink -Path $linkPath -Target $fakeTarget | Out-Null
+        New-Item -ItemType SymbolicLink -Path $psPath -Target $fakeTarget | Out-Null
         try {
             & $scriptPath -BinDir $binDir
-            $item = Get-Item $linkPath -Force
-            $item.LinkType | Should -Be "SymbolicLink"
-            $expectedTarget = (Get-Item (Join-Path $PSScriptRoot "..\create-feature-workspace.ps1")).FullName
-            $item.Target | Should -Be $expectedTarget
+            $item = Get-Item $psPath -Force
+            $item.LinkType | Should -BeNullOrEmpty
+            Get-Content $psPath -Raw | Should -Be $expectedPsContent
         } finally {
             if (Test-Path $binDir) { Remove-Item -Recurse -Force $binDir }
             if (Test-Path $fakeTarget) { Remove-Item $fakeTarget }
@@ -113,13 +117,13 @@ Describe "install-create-feature-workspace.ps1" {
         }
     }
 
-    It "Prints 'Created symlink' when bin dir is in PATH" {
+    It "Prints 'Installed:' when bin dir is in PATH" {
         $binDir = Join-Path $tempRoot "bin-$(Get-Random)"
         $originalPath = $env:PATH
         try {
             $env:PATH = $binDir + [System.IO.Path]::PathSeparator + $env:PATH
             $output = & $scriptPath -BinDir $binDir *>&1 | Out-String
-            $output | Should -Match "Created symlink:"
+            $output | Should -Match "Installed:"
             $output | Should -Not -Match "is not currently in PATH"
         } finally {
             $env:PATH = $originalPath
