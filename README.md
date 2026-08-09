@@ -46,3 +46,5 @@ Each workspace contains two hidden metadata files:
 - `.create-feature-workspace.provisioned.ini` records the entries the tool successfully created. It is managed by the tool and should not be edited.
 
 They may look similar immediately after creation because the workspace matches its desired definition. They can differ while changes are being reconciled, and the provisioned record lets the tool distinguish entries it owns from unrelated files in the workspace.
+
+Copyrighy © 2026 Commit AI. All rights reserved.
