@@ -1231,4 +1231,12 @@ exit 0
             Remove-Item -Recurse -Force $shimDir -ErrorAction SilentlyContinue
         }
     }
+
+    It "-Help prints usage and exits 0 without requiring other parameters" {
+        $output = & $scriptPath -Help *>&1 | Out-String
+        $LASTEXITCODE | Should -Be 0
+        $output | Should -Match "Usage:"
+        $output | Should -Match "-FeatureName"
+        $output | Should -Match "-ConfigFile"
+    }
 }
