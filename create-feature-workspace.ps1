@@ -24,6 +24,14 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# When invoked via the .cmd wrapper, PowerShell -File treats '--help' as a
+# stop-parsing token: dashes are stripped and 'help' binds to $FeatureName.
+# Also handle '/?' which CMD users commonly type.
+if ($FeatureName -in @("help", "/?", "-h") -or $FeatureName -eq "--help") {
+    $Help = $true
+    $FeatureName = ""
+}
+
 if ($Help) {
     @"
 Usage: create-feature-workspace [OPTIONS]

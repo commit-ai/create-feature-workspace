@@ -1239,4 +1239,16 @@ exit 0
         $output | Should -Match "-FeatureName"
         $output | Should -Match "-ConfigFile"
     }
+
+    It "--help (stop-parsing form from .cmd wrapper) prints usage and exits 0" {
+        $output = & $scriptPath --help *>&1 | Out-String
+        $LASTEXITCODE | Should -Be 0
+        $output | Should -Match "Usage:"
+    }
+
+    It "/? prints usage and exits 0" {
+        $output = & $scriptPath /? *>&1 | Out-String
+        $LASTEXITCODE | Should -Be 0
+        $output | Should -Match "Usage:"
+    }
 }
