@@ -17,10 +17,48 @@ param(
     [string]$Branch,
 
     [ValidateSet("repository", "folder")]
-    [string]$Type = "repository"
+    [string]$Type = "repository",
+
+    [switch]$Help
 )
 
 $ErrorActionPreference = "Stop"
+
+# When invoked via the .cmd wrapper, PowerShell -File treats '--help' as a
+# stop-parsing token: dashes are stripped and 'help' binds to $FeatureName.
+# Also handle '/?' which CMD users commonly type.
+if ($FeatureName -in @("help", "/?", "-h") -or $FeatureName -eq "--help") {
+    $Help = $true
+    $FeatureName = ""
+}
+
+if ($Help) {
+    @"
+Usage: create-feature-workspace [OPTIONS]
+
+Commands (pass via -Command, default: create):
+  create   Create a new feature workspace from a config file
+  sync     Reconcile the workspace manifest with the filesystem
+  add      Add a new entry to an existing workspace
+  remove   Remove an entry from an existing workspace
+
+Options for 'create':
+  -FeatureName NAME       Name of the feature workspace to create (required)
+  -ConfigFile PATH        INI config listing repositories/folders (required)
+  -WorkspacesRoot PATH    Root directory for workspaces (default: ~/workspaces)
+  -NoWorktrees            Use symlinks instead of git worktrees
+
+Options for 'add':
+  -FolderName NAME        Entry name to add (required)
+  -FolderPath PATH        Path to the repository or folder (required)
+  -Branch BRANCH          Branch to use (repository entries; auto-detected if omitted)
+  -Type TYPE              Entry type: repository or folder (default: repository)
+
+General:
+  -Help                   Show this help message
+"@
+    exit 0
+}
 
 function Expand-PathValue {
     param([string]$Value)
