@@ -8,6 +8,7 @@ targets:
 dependencies:
   apm:
   - commit-ai/ponytail
-  - commit-ai/commit-ai-skills/skills/humanize
+  - commit-ai/commit-ai-skills/plugins/humanize
+  - commit-ai/commit-ai-skills/plugins/write-readme-file
   mcp: []
 scripts: {}
