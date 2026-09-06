@@ -1,5 +1,7 @@
+# TODOs
+
 1. 1-time workspace setup, and the ability to create new branches in the same workspace (transition to a new "feature")
-2. Change `branch` to `base_branch`
+2. Change `branch` to `base_branch` in the INI files
 3. Demo it with the superheros repo's backend, frontend, etc. (from the exercises)
 4. Agent skill for generating a workspace based on a ticket/spec by searching the current folder and the repos in it
 5. Hook/skill for pulling all the remote base branches of all repos in the workspace
